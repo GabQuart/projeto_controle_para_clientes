@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
 import type { RequestedCatalogAction } from '@/types/request'
 import { ActionSelector } from '@/components/ActionSelector'
@@ -19,8 +18,6 @@ function VariantActionRow({
   variant: CatalogVariant
   onAction: (input: { product: CatalogProduct; variant: CatalogVariant; requestedAction: RequestedCatalogAction }) => void
 }) {
-  const [requestedAction, setRequestedAction] = useState<RequestedCatalogAction>(variant.ativo ? 'inativar' : 'ativar')
-
   return (
     <div className="rounded-2xl border border-black/10 bg-white/70 p-3">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -30,12 +27,7 @@ function VariantActionRow({
             {[variant.variacao || variant.cor, variant.tamanho].filter(Boolean).join(' | ') || 'Sem detalhamento adicional'}
           </p>
         </div>
-        <ActionSelector
-          value={requestedAction}
-          onChange={setRequestedAction}
-          onSubmit={() => onAction({ product, variant, requestedAction })}
-          buttonLabel="Abrir"
-        />
+        <ActionSelector onSelect={(requestedAction) => onAction({ product, variant, requestedAction })} />
       </div>
     </div>
   )
