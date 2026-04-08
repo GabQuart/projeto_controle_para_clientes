@@ -2,7 +2,7 @@ import { readMultipleSheetTabs } from '@/lib/google/sheets'
 import { compactText, normalizeText, splitList, toBooleanFlag } from '@/lib/utils/format'
 import { extractGoogleDriveId } from '@/lib/google/drive'
 import { extractSkuBase, matchesSkuTerm, normalizeSku } from '@/lib/utils/sku'
-import { getCatalogCache } from '@/lib/services/catalog-cache.service'
+import { getCatalogCache, patchCatalogCacheItems } from '@/lib/services/catalog-cache.service'
 import type { CatalogCacheMetadata, CatalogProduct, CatalogQuery, CatalogVariant } from '@/types/catalog'
 
 const SOURCE_SHEET_ID = process.env.GOOGLE_SOURCE_SHEET_ID ?? ''
@@ -141,8 +141,8 @@ export async function getCatalogCacheMetadata(options: { forceRefresh?: boolean 
   return metadata satisfies CatalogCacheMetadata
 }
 
-export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariacao?: string }) {
-  const { items: catalog } = await getCatalogBase()
+export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariacao?: string; forceRefresh?: boolean }) {
+  const { items: catalog } = await getCatalogBase({ forceRefresh: input.forceRefresh })
   const product = catalog.find((item) => item.skuBase === normalizeSku(input.skuBase))
 
   if (!product) {
@@ -157,4 +157,39 @@ export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariac
     product,
     variant,
   }
+}
+
+export async function updateCatalogVariantStatuses(statusBySku: Record<string, boolean>) {
+  const normalizedEntries = Object.entries(statusBySku).map(([sku, active]) => [normalizeSku(sku), active] as const)
+  const normalizedMap = new Map(normalizedEntries)
+
+  return patchCatalogCacheItems((items) =>
+    items.map((product) => {
+      let hasRelevantChange = false
+
+      const variacoes = product.variacoes.map((variant) => {
+        const nextStatus = normalizedMap.get(normalizeSku(variant.sku))
+
+        if (typeof nextStatus !== 'boolean') {
+          return variant
+        }
+
+        hasRelevantChange = true
+        return {
+          ...variant,
+          ativo: nextStatus,
+        }
+      })
+
+      if (!hasRelevantChange) {
+        return product
+      }
+
+      return {
+        ...product,
+        variacoes,
+        ativo: variacoes.some((variant) => Boolean(variant.ativo)),
+      }
+    }),
+  )
 }

@@ -81,6 +81,8 @@ NEXT_PUBLIC_APP_NAME=Catalogo Marketplace
 9. Quem tem acesso: `Qualquer pessoa com o link`.
 10. Copie a URL final `/exec` e coloque em `APPS_SCRIPT_WEB_APP_URL`.
 
+Sempre que `apps-script/Code.gs` mudar, faca uma nova implantacao ou atualize a implantacao existente para que o Next.js consiga usar as novas acoes do Web App.
+
 ## Acesso as planilhas e pasta
 
 O Apps Script roda com a sua conta, entao ele precisa ter acesso aos recursos:
@@ -104,7 +106,7 @@ A aplicacao continua resolvendo a imagem por uma rota interna do Next, mas o URL
 - `GET /api/solicitacoes?status=nao_concluido&loja=KricaKids`
   - Lista solicitacoes gravadas na planilha de saida.
 - `POST /api/solicitacoes`
-  - Cria uma nova solicitacao.
+  - Cria uma nova solicitacao. Para ativacao e inativacao, a rota tambem atualiza a coluna `ativo` da aba `VARIACOES_SKU` na planilha principal.
 - `GET /api/operadores`
   - Lista operadores mockados para login inicial.
 - `GET /api/catalogo/imagem/:fileId?kind=file|folder`

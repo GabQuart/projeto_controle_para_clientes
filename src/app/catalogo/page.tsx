@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -9,6 +9,7 @@ import { ProductTable } from '@/components/ProductTable'
 import { SearchBar } from '@/components/SearchBar'
 import type { CatalogPagination, CatalogProduct, CatalogVariant } from '@/types/catalog'
 import type { Operator } from '@/types/operator'
+import type { RequestedCatalogAction } from '@/types/request'
 
 const STORAGE_KEY = 'catalogo-marketplace.operator'
 const PAGE_SIZE = 10
@@ -22,6 +23,40 @@ const EMPTY_PAGINATION: CatalogPagination = {
   hasNextPage: false,
 }
 
+type SelectedCatalogAction = {
+  product: CatalogProduct
+  variant?: CatalogVariant
+  requestedAction: RequestedCatalogAction
+}
+
+function getEligibleVariants(item: { product: CatalogProduct; variant?: CatalogVariant }, requestedAction: RequestedCatalogAction) {
+  const variants = item.variant ? [item.variant] : item.product.variacoes
+
+  if (requestedAction === 'ativar') {
+    return variants.filter((variant) => !variant.ativo)
+  }
+
+  if (requestedAction === 'inativar') {
+    return variants.filter((variant) => Boolean(variant.ativo))
+  }
+
+  return variants
+}
+
+function getBlockedActionMessage(item: { product: CatalogProduct; variant?: CatalogVariant }, requestedAction: RequestedCatalogAction) {
+  const isVariantAction = Boolean(item.variant)
+
+  if (requestedAction === 'ativar') {
+    return isVariantAction ? 'A variacao selecionada ja esta ativa.' : 'Nao existem variacoes inativas para ativar neste produto.'
+  }
+
+  if (requestedAction === 'inativar') {
+    return isVariantAction ? 'A variacao selecionada ja esta inativa.' : 'Nao existem variacoes ativas para inativar neste produto.'
+  }
+
+  return item.product.variacoes.length === 0 ? 'Este produto nao possui variacoes cadastradas para selecionar.' : ''
+}
+
 export default function CatalogoPage() {
   const router = useRouter()
   const [operator, setOperator] = useState<Operator | null>(null)
@@ -32,7 +67,8 @@ export default function CatalogoPage() {
   const [expandedIds, setExpandedIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [selectedItem, setSelectedItem] = useState<{ product: CatalogProduct; variant?: CatalogVariant } | null>(null)
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const [selectedItem, setSelectedItem] = useState<SelectedCatalogAction | null>(null)
 
   useEffect(() => {
     const storedOperator = sessionStorage.getItem(STORAGE_KEY)
@@ -96,7 +132,7 @@ export default function CatalogoPage() {
       controller.abort()
       window.clearTimeout(timeout)
     }
-  }, [currentPage, operator, search])
+  }, [currentPage, operator, refreshNonce, search])
 
   const summary = useMemo(() => {
     const variants = products.reduce((total, product) => total + product.variacoes.length, 0)
@@ -121,6 +157,20 @@ export default function CatalogoPage() {
     setCurrentPage(page)
     setExpandedIds([])
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function handleOpenAction(input: SelectedCatalogAction) {
+    const eligibleVariants = getEligibleVariants(input, input.requestedAction)
+
+    if (input.requestedAction !== 'alteracao_especifica' && eligibleVariants.length === 0) {
+      const message = getBlockedActionMessage(input, input.requestedAction)
+      setError(message)
+      window.alert(message)
+      return
+    }
+
+    setError('')
+    setSelectedItem(input)
   }
 
   function handleLogout() {
@@ -174,11 +224,15 @@ export default function CatalogoPage() {
             products={products}
             expandedIds={expandedIds}
             onToggle={toggleExpanded}
-            onAction={setSelectedItem}
+            onAction={handleOpenAction}
           />
         )}
 
-        {!loading ? <div className="mt-4"><PaginationControls pagination={pagination} onPageChange={handlePageChange} /></div> : null}
+        {!loading ? (
+          <div className="mt-4">
+            <PaginationControls pagination={pagination} onPageChange={handlePageChange} />
+          </div>
+        ) : null}
       </section>
 
       <ActionModal
@@ -186,7 +240,10 @@ export default function CatalogoPage() {
         operator={operator}
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
-        onCreated={() => router.refresh()}
+        onCreated={() => {
+          setSelectedItem(null)
+          setRefreshNonce((current) => current + 1)
+        }}
       />
     </main>
   )

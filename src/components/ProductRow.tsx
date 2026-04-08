@@ -1,15 +1,22 @@
-﻿import Image from 'next/image'
+'use client'
+
+import { useState } from 'react'
+import Image from 'next/image'
 import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
+import type { RequestedCatalogAction } from '@/types/request'
+import { ActionSelector } from '@/components/ActionSelector'
 import { VariantList } from '@/components/VariantList'
 
 type ProductRowProps = {
   product: CatalogProduct
   expanded: boolean
   onToggle: () => void
-  onAction: (input: { product: CatalogProduct; variant?: CatalogVariant }) => void
+  onAction: (input: { product: CatalogProduct; variant?: CatalogVariant; requestedAction: RequestedCatalogAction }) => void
 }
 
 export function ProductRow({ product, expanded, onToggle, onAction }: ProductRowProps) {
+  const [requestedAction, setRequestedAction] = useState<RequestedCatalogAction>('inativar')
+
   return (
     <article className="panel rounded-3xl p-4 sm:p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -35,14 +42,13 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
             </div>
           </div>
         </div>
-        <div className="grid gap-2 sm:flex sm:flex-wrap">
-          <button
-            type="button"
-            onClick={() => onAction({ product })}
-            className="rounded-full border border-amber/20 bg-amber/10 px-4 py-3 text-sm font-semibold text-amber transition hover:bg-amber/20"
-          >
-            Solicitar acao do produto
-          </button>
+        <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+          <ActionSelector
+            value={requestedAction}
+            onChange={setRequestedAction}
+            onSubmit={() => onAction({ product, requestedAction })}
+            buttonLabel="Abrir acao"
+          />
           <button
             type="button"
             onClick={onToggle}
@@ -54,7 +60,7 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
       </div>
       {expanded ? (
         <div className="mt-4 border-t border-black/10 pt-4">
-          <VariantList product={product} onAction={({ variant }) => onAction({ product, variant })} />
+          <VariantList product={product} onAction={({ variant, requestedAction: nextAction }) => onAction({ product, variant, requestedAction: nextAction })} />
         </div>
       ) : null}
     </article>

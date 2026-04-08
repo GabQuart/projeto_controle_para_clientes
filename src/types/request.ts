@@ -7,6 +7,15 @@ export type ChangeRequestType =
   | 'inativar_variacao'
   | 'alteracao_especifica'
 
+export type RequestedCatalogAction = 'ativar' | 'inativar' | 'alteracao_especifica'
+
+export type RequestedVariantStock = {
+  sku: string
+  cor?: string
+  tamanho?: string
+  estoque: number
+}
+
 export type ChangeRequest = {
   id: string
   dataAbertura: string
@@ -23,6 +32,9 @@ export type ChangeRequest = {
   status: ChangeRequestStatus
   responsavelInterno?: string
   dataConclusao?: string
+  variacoesSelecionadas?: string[]
+  estoqueGeral?: number
+  estoquePorVariacao?: RequestedVariantStock[]
 }
 
 export type ChangeRequestFilters = {

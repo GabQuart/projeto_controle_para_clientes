@@ -29,6 +29,9 @@ function handleRequest_(method, e) {
       case 'updateSheetRow':
         updateSheetRow_(body.spreadsheetId, body.range, body.values)
         return ok_(null)
+      case 'updateRowsByLookup':
+        updateRowsByLookup_(body.spreadsheetId, body.sheetName, body.keyHeader, body.updates)
+        return ok_(null)
       default:
         throw new Error('Acao nao suportada: ' + action)
     }
@@ -127,6 +130,60 @@ function updateSheetRow_(spreadsheetId, rangeA1, values) {
   var spreadsheet = SpreadsheetApp.openById(spreadsheetId)
   var range = spreadsheet.getRange(rangeA1)
   range.setValues(values)
+}
+
+function updateRowsByLookup_(spreadsheetId, sheetName, keyHeader, updates) {
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId)
+  var sheet = spreadsheet.getSheetByName(sheetName)
+
+  if (!sheet) {
+    throw new Error('Aba nao encontrada para update: ' + sheetName)
+  }
+
+  if (!updates || !updates.length) {
+    return
+  }
+
+  var headerValues = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0]
+  var headerIndexByName = {}
+
+  headerValues.forEach(function (header, index) {
+    headerIndexByName[String(header || '').trim()] = index + 1
+  })
+
+  var keyColumn = headerIndexByName[String(keyHeader || '').trim()]
+
+  if (!keyColumn) {
+    throw new Error('Coluna chave nao encontrada: ' + keyHeader)
+  }
+
+  var updateMap = {}
+  updates.forEach(function (item) {
+    if (item && item.key) {
+      updateMap[String(item.key)] = item.values || {}
+    }
+  })
+
+  var keyValues = sheet.getRange(2, keyColumn, Math.max(sheet.getLastRow() - 1, 0), 1).getDisplayValues()
+
+  for (var rowOffset = 0; rowOffset < keyValues.length; rowOffset += 1) {
+    var key = String(keyValues[rowOffset][0] || '')
+    var valuesToApply = updateMap[key]
+
+    if (!valuesToApply) {
+      continue
+    }
+
+    Object.keys(valuesToApply).forEach(function (headerName) {
+      var columnIndex = headerIndexByName[String(headerName || '').trim()]
+
+      if (!columnIndex) {
+        throw new Error('Coluna de atualizacao nao encontrada: ' + headerName)
+      }
+
+      sheet.getRange(rowOffset + 2, columnIndex).setValue(valuesToApply[headerName])
+    })
+  }
 }
 
 function sheetToObjects_(sheet) {

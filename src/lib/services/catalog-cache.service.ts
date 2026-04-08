@@ -59,6 +59,11 @@ async function writeCacheFile(payload: CatalogCachePayload) {
   await writeFile(CACHE_FILE, JSON.stringify(payload, null, 2), 'utf8')
 }
 
+async function persistPayload(payload: CatalogCachePayload) {
+  memoryCache = payload
+  await writeCacheFile(payload)
+}
+
 export async function getCatalogCache(
   loader: () => Promise<CatalogProduct[]>,
   options: { forceRefresh?: boolean } = {},
@@ -108,8 +113,7 @@ export async function getCatalogCache(
       items,
     }
 
-    memoryCache = payload
-    await writeCacheFile(payload)
+    await persistPayload(payload)
 
     return payload
   })()
@@ -127,4 +131,22 @@ export async function getCatalogCache(
   } finally {
     pendingRefresh = null
   }
+}
+
+export async function patchCatalogCacheItems(
+  updater: (items: CatalogProduct[]) => CatalogProduct[],
+) {
+  const sourcePayload = memoryCache ?? (await readCacheFile())
+
+  if (!sourcePayload) {
+    return null
+  }
+
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    items: updater(sourcePayload.items),
+  }
+
+  await persistPayload(payload)
+  return payload
 }
