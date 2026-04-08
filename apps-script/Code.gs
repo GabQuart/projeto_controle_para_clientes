@@ -1,0 +1,266 @@
+﻿function doGet(e) {
+  return buildJsonResponse_(handleRequest_('GET', e))
+}
+
+function doPost(e) {
+  return buildJsonResponse_(handleRequest_('POST', e))
+}
+
+function handleRequest_(method, e) {
+  try {
+    var params = (e && e.parameter) || {}
+    var body = method === 'POST' ? parseJsonBody_(e) : {}
+    var action = params.action || body.action
+
+    validateToken_(params.token || body.token || '')
+
+    switch (action) {
+      case 'readSheetTab':
+        return ok_(readSheetTab_(params.spreadsheetId, params.sheetName))
+      case 'readMultipleSheetTabs':
+        return ok_(readMultipleSheetTabs_(params.spreadsheetId, splitCsv_(params.sheetNames)))
+      case 'getSpreadsheetSheetTitles':
+        return ok_(getSpreadsheetSheetTitles_(params.spreadsheetId))
+      case 'resolveDriveImage':
+        return ok_(resolveDriveImage_(params.linkOrId))
+      case 'appendSheetRow':
+        appendSheetRow_(body.spreadsheetId, body.sheetName, body.values)
+        return ok_(null)
+      case 'updateSheetRow':
+        updateSheetRow_(body.spreadsheetId, body.range, body.values)
+        return ok_(null)
+      default:
+        throw new Error('Acao nao suportada: ' + action)
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      error: error && error.message ? error.message : 'Falha interna no Apps Script',
+    }
+  }
+}
+
+function ok_(data) {
+  return {
+    ok: true,
+    data: data,
+  }
+}
+
+function buildJsonResponse_(payload) {
+  return ContentService.createTextOutput(JSON.stringify(payload)).setMimeType(ContentService.MimeType.JSON)
+}
+
+function parseJsonBody_(e) {
+  if (!e || !e.postData || !e.postData.contents) {
+    return {}
+  }
+
+  return JSON.parse(e.postData.contents)
+}
+
+function validateToken_(requestToken) {
+  var configuredToken = PropertiesService.getScriptProperties().getProperty('APPS_SCRIPT_TOKEN')
+
+  if (configuredToken && configuredToken !== requestToken) {
+    throw new Error('Token do Apps Script invalido')
+  }
+}
+
+function splitCsv_(value) {
+  if (!value) {
+    return []
+  }
+
+  return String(value)
+    .split(',')
+    .map(function (item) { return item.trim() })
+    .filter(Boolean)
+}
+
+function getSpreadsheetSheetTitles_(spreadsheetId) {
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId)
+  return spreadsheet.getSheets().map(function (sheet) {
+    return sheet.getName()
+  })
+}
+
+function readSheetTab_(spreadsheetId, sheetName) {
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId)
+  var sheet = spreadsheet.getSheetByName(sheetName)
+
+  if (!sheet) {
+    throw new Error('Aba nao encontrada: ' + sheetName)
+  }
+
+  return sheetToObjects_(sheet)
+}
+
+function readMultipleSheetTabs_(spreadsheetId, sheetNames) {
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId)
+  var result = {}
+
+  sheetNames.forEach(function (sheetName) {
+    var sheet = spreadsheet.getSheetByName(sheetName)
+    if (!sheet) {
+      return
+    }
+
+    result[sheetName] = sheetToObjects_(sheet)
+  })
+
+  return result
+}
+
+function appendSheetRow_(spreadsheetId, sheetName, values) {
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId)
+  var sheet = spreadsheet.getSheetByName(sheetName)
+
+  if (!sheet) {
+    throw new Error('Aba nao encontrada para append: ' + sheetName)
+  }
+
+  sheet.appendRow(values || [])
+}
+
+function updateSheetRow_(spreadsheetId, rangeA1, values) {
+  var spreadsheet = SpreadsheetApp.openById(spreadsheetId)
+  var range = spreadsheet.getRange(rangeA1)
+  range.setValues(values)
+}
+
+function sheetToObjects_(sheet) {
+  var range = sheet.getDataRange()
+  var displayValues = range.getDisplayValues()
+  var formulas = range.getFormulas()
+  var richTextValues = range.getRichTextValues()
+
+  if (!displayValues.length) {
+    return []
+  }
+
+  var headers = displayValues[0].map(function (value, index) {
+    return normalizeHeader_(value, index)
+  })
+
+  var rows = []
+
+  for (var rowIndex = 1; rowIndex < displayValues.length; rowIndex += 1) {
+    var record = {}
+    var hasValue = false
+
+    for (var colIndex = 0; colIndex < headers.length; colIndex += 1) {
+      var header = headers[colIndex]
+      var cellValue = displayValues[rowIndex][colIndex]
+      var hyperlink = extractHyperlink_(formulas[rowIndex][colIndex], richTextValues[rowIndex][colIndex])
+
+      if (cellValue) {
+        record[header] = cellValue
+        hasValue = true
+      }
+
+      if (hyperlink) {
+        record[header + '__hyperlink'] = hyperlink
+        hasValue = true
+      }
+    }
+
+    if (hasValue) {
+      rows.push(record)
+    }
+  }
+
+  return rows
+}
+
+function normalizeHeader_(value, index) {
+  var trimmed = String(value || '').trim()
+  return trimmed || 'coluna_' + (index + 1)
+}
+
+function extractHyperlink_(formula, richTextValue) {
+  if (richTextValue) {
+    var richLink = richTextValue.getLinkUrl()
+    if (richLink) {
+      return richLink
+    }
+  }
+
+  if (!formula) {
+    return ''
+  }
+
+  var match = String(formula).match(/=HYPERLINK\("([^"]+)"[;,]/i)
+  return match && match[1] ? match[1] : ''
+}
+
+function resolveDriveImage_(linkOrId) {
+  var resolvedId = extractDriveId_(linkOrId)
+
+  if (!resolvedId) {
+    return {}
+  }
+
+  if (String(linkOrId || '').indexOf('/folders/') !== -1) {
+    return getFirstImageFromFolder_(resolvedId)
+  }
+
+  return {
+    fileId: resolvedId,
+    originalUrl: buildDriveFileViewUrl_(resolvedId),
+    usableUrl: buildDriveThumbnailUrl_(resolvedId),
+  }
+}
+
+function getFirstImageFromFolder_(folderId) {
+  var folder = DriveApp.getFolderById(folderId)
+  var files = folder.getFiles()
+
+  while (files.hasNext()) {
+    var file = files.next()
+    if (String(file.getMimeType() || '').indexOf('image/') === 0) {
+      var fileId = file.getId()
+      return {
+        folderId: folderId,
+        fileId: fileId,
+        originalUrl: buildDriveFileViewUrl_(fileId),
+        usableUrl: buildDriveThumbnailUrl_(fileId),
+      }
+    }
+  }
+
+  return {
+    folderId: folderId,
+    originalUrl: 'https://drive.google.com/drive/folders/' + folderId,
+  }
+}
+
+function extractDriveId_(value) {
+  if (!value) {
+    return ''
+  }
+
+  var text = String(value).trim()
+  var patterns = [
+    /\/folders\/([a-zA-Z0-9_-]+)/,
+    /\/file\/d\/([a-zA-Z0-9_-]+)/,
+    /[?&]id=([a-zA-Z0-9_-]+)/,
+  ]
+
+  for (var index = 0; index < patterns.length; index += 1) {
+    var match = text.match(patterns[index])
+    if (match && match[1]) {
+      return match[1]
+    }
+  }
+
+  return text
+}
+
+function buildDriveFileViewUrl_(fileId) {
+  return 'https://drive.google.com/file/d/' + fileId + '/view'
+}
+
+function buildDriveThumbnailUrl_(fileId) {
+  return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1200'
+}
