@@ -54,17 +54,25 @@ O sistema le o catalogo em uma planilha Google Sheets somente leitura, organiza 
 ```env
 APPS_SCRIPT_WEB_APP_URL=https://script.google.com/macros/s/SEU_DEPLOYMENT_ID/exec
 APPS_SCRIPT_TOKEN=
-GOOGLE_SOURCE_SHEET_ID=1cahve da planilha
-GOOGLE_OUTPUT_SHEET_ID= sua chave da planilha
-GOOGLE_DRIVE_FOLDER_ID=sua chave da pasta
-NEXT_PUBLIC_APP_NAME=nome da planilha
+GOOGLE_SOURCE_SHEET_ID=1A_aDf5GrnTWLdICVND1onvNDeMxWuMnur9tW9uQwZ_g
+GOOGLE_OUTPUT_SHEET_ID=1QjTHwp8qnkaFOIVRHuDxXuo7si7trshjB6aSa4Pj1L0
+GOOGLE_DRIVE_FOLDER_ID=1TljgB91WOfYUthu8kIIXPfSheFv-qsym
+CATALOG_CACHE_TTL_MINUTES=10
+NEXT_PUBLIC_APP_NAME=Catalogo Marketplace
 ```
+
+## Cache local do catalogo
+
+- O catalogo agora e persistido em `/.cache/catalog.json` no servidor para acelerar buscas, paginacao e recargas da tela.
+- O tempo de vida do cache e controlado por `CATALOG_CACHE_TTL_MINUTES`.
+- Quando o cache ainda esta valido, o sistema reutiliza o JSON local e evita nova leitura completa no Apps Script.
+- Para forcar atualizacao imediata do cache, use `GET /api/catalogo?refresh=true`.
 
 ## Publicando o Apps Script
 
 1. Acesse [script.new](https://script.new).
 2. Apague o conteudo padrao.
-3. Cole o conteudo de [apps-script/Code.gs](C:\Users\usuario_seunome\Documents\Projeto_controle_clientes\apps-script\Code.gs).
+3. Cole o conteudo de [apps-script/Code.gs](C:\Users\Manalink\Documents\Projeto_controle_clientes\apps-script\Code.gs).
 4. Salve o projeto.
 5. Em `Configuracoes do projeto`, opcionalmente adicione a propriedade de script `APPS_SCRIPT_TOKEN` para proteger o endpoint.
 6. Clique em `Implantar > Nova implantacao`.
@@ -72,6 +80,8 @@ NEXT_PUBLIC_APP_NAME=nome da planilha
 8. Execute como `Voce`.
 9. Quem tem acesso: `Qualquer pessoa com o link`.
 10. Copie a URL final `/exec` e coloque em `APPS_SCRIPT_WEB_APP_URL`.
+
+Sempre que `apps-script/Code.gs` mudar, faca uma nova implantacao ou atualize a implantacao existente para que o Next.js consiga usar as novas acoes do Web App.
 
 ## Acesso as planilhas e pasta
 
@@ -85,16 +95,22 @@ Se esses arquivos ja estao na sua conta Google ou compartilhados para voce, o Ap
 
 ## Observacao sobre imagens
 
-A aplicacao continua resolvendo a imagem por uma rota interna do Next, mas o URL final usa thumbnail/view do Drive. Para a miniatura aparecer no navegador com consistencia, o arquivo de imagem precisa estar acessivel pelo link do Drive.
+A aplicacao procura primeiro um arquivo chamado `imagem_principal` dentro da pasta do produto no Drive. Se encontrar, usa essa imagem na capa do produto; se nao encontrar, cai no primeiro arquivo de imagem da pasta.
+
+Quando uma imagem principal e resolvida, o resultado fica salvo no cache JSON local do catalogo para evitar novas consultas ao Drive nas proximas cargas.
+
+Para a miniatura aparecer no navegador com consistencia, o arquivo de imagem precisa estar acessivel pelo link do Drive.
 
 ## Endpoints
 
 - `GET /api/catalogo?clienteCod=KRICA&termo=blusa`
   - Retorna produtos e variacoes filtrados.
+- `GET /api/catalogo?clienteCod=KRICA&termo=blusa&refresh=true`
+  - Forca recarga do catalogo na fonte e regrava o cache JSON local.
 - `GET /api/solicitacoes?status=nao_concluido&loja=KricaKids`
   - Lista solicitacoes gravadas na planilha de saida.
 - `POST /api/solicitacoes`
-  - Cria uma nova solicitacao.
+  - Cria uma nova solicitacao. Para ativacao e inativacao, a rota tambem atualiza a coluna `ativo` da aba `VARIACOES_SKU` na planilha principal.
 - `GET /api/operadores`
   - Lista operadores mockados para login inicial.
 - `GET /api/catalogo/imagem/:fileId?kind=file|folder`
@@ -116,6 +132,7 @@ A aplicacao continua resolvendo a imagem por uma rota interna do Next, mas o URL
 - Ainda nao existem testes automatizados.
 - As imagens do Drive dependem de URLs renderizaveis no navegador; em ambientes mais fechados pode ser necessario manter placeholder ou tornar os arquivos acessiveis por link.
 - O Apps Script atual foi desenhado para esta primeira versao e nao substitui um backend robusto para cenarios de alto volume.
+- O cache em JSON funciona muito bem em execucao local ou servidores persistentes; em ambientes serverless/ephemeros ele pode ser recriado com mais frequencia.
 
 ## Migracao futura para PostgreSQL
 

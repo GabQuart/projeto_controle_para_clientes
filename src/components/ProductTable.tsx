@@ -1,11 +1,12 @@
-﻿import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
+import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
+import type { RequestedCatalogAction } from '@/types/request'
 import { ProductRow } from '@/components/ProductRow'
 
 type ProductTableProps = {
   products: CatalogProduct[]
   expandedIds: string[]
   onToggle: (skuBase: string) => void
-  onAction: (input: { product: CatalogProduct; variant?: CatalogVariant }) => void
+  onAction: (input: { product: CatalogProduct; variant?: CatalogVariant; requestedAction: RequestedCatalogAction }) => void
 }
 
 export function ProductTable({ products, expandedIds, onToggle, onAction }: ProductTableProps) {

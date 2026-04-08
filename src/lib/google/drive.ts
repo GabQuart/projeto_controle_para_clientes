@@ -1,5 +1,5 @@
 ﻿import { requestAppsScript } from '@/lib/google/apps-script'
-import { buildDriveFileViewUrl, buildDriveThumbnailUrl, extractDriveId } from '@/lib/utils/drive-url'
+import { buildDriveFileViewUrl, buildDriveFolderUrl, buildDriveThumbnailUrl, extractDriveId } from '@/lib/utils/drive-url'
 
 export type DriveImageReference = {
   fileId?: string
@@ -24,6 +24,14 @@ export function convertGoogleDriveLinkToUsableUrl(value?: string | null) {
   }
 
   return buildDriveThumbnailUrl(id)
+}
+
+export function isGoogleDriveFolderLink(value?: string | null) {
+  return (value ?? '').includes('/folders/')
+}
+
+export function buildGoogleDriveFolderLink(folderId?: string | null) {
+  return buildDriveFolderUrl(folderId)
 }
 
 export async function resolveReferenceImage(linkOrId?: string | null): Promise<DriveImageReference> {

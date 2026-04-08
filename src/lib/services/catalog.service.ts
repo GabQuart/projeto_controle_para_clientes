@@ -1,8 +1,15 @@
-﻿import { readMultipleSheetTabs } from '@/lib/google/sheets'
+import { readMultipleSheetTabs } from '@/lib/google/sheets'
+import {
+  buildGoogleDriveFolderLink,
+  extractGoogleDriveId,
+  isGoogleDriveFolderLink,
+  resolveReferenceImage,
+} from '@/lib/google/drive'
 import { compactText, normalizeText, splitList, toBooleanFlag } from '@/lib/utils/format'
-import { extractGoogleDriveId } from '@/lib/google/drive'
+import { buildDriveThumbnailUrl } from '@/lib/utils/drive-url'
 import { extractSkuBase, matchesSkuTerm, normalizeSku } from '@/lib/utils/sku'
-import type { CatalogProduct, CatalogQuery, CatalogVariant } from '@/types/catalog'
+import { getCatalogCache, patchCatalogCacheItems } from '@/lib/services/catalog-cache.service'
+import type { CatalogCacheMetadata, CatalogProduct, CatalogQuery, CatalogVariant } from '@/types/catalog'
 
 const SOURCE_SHEET_ID = process.env.GOOGLE_SOURCE_SHEET_ID ?? ''
 const PRODUCT_SHEET = 'CATALOGO_PRODUTOS'
@@ -16,7 +23,7 @@ function buildProductImageApiPath(link?: string) {
     return ''
   }
 
-  const kind = (link ?? '').includes('/folders/') ? 'folder' : 'file'
+  const kind = isGoogleDriveFolderLink(link) ? 'folder' : 'file'
   return `/api/catalogo/imagem/${driveId}?kind=${kind}`
 }
 
@@ -37,6 +44,8 @@ function buildProductRow(row: Record<string, string | undefined>, storeByClient:
   const clienteCod = compactText(row.cd_cliente)
   const skuBase = normalizeSku(row.id_produto || `${clienteCod}.${row.num_prod}`)
   const fotoLink = row['midia__hyperlink'] ?? row.midia
+  const fotoDriveKind = isGoogleDriveFolderLink(fotoLink) ? 'folder' : 'file'
+  const fotoFileId = extractGoogleDriveId(fotoLink)
 
   return {
     id: skuBase,
@@ -44,8 +53,9 @@ function buildProductRow(row: Record<string, string | undefined>, storeByClient:
     loja: storeByClient[clienteCod] ?? clienteCod,
     skuBase,
     titulo: compactText(row.Titulo),
-    fotoRef: buildProductImageApiPath(fotoLink),
-    fotoFileId: extractGoogleDriveId(fotoLink),
+    fotoRef: fotoDriveKind === 'file' ? buildDriveThumbnailUrl(fotoFileId) : buildProductImageApiPath(fotoLink),
+    fotoFileId,
+    fotoDriveKind,
     cores: splitList(row.Cores),
     tamanhos: splitList(row.Tamanhos),
     ativo: true,
@@ -88,7 +98,11 @@ function filterCatalog(products: CatalogProduct[], query: CatalogQuery) {
   })
 }
 
-export async function listCatalog(query: CatalogQuery = {}) {
+function isResolvedDriveImage(product: CatalogProduct) {
+  return Boolean(product.fotoRef?.includes('drive.google.com/thumbnail'))
+}
+
+async function fetchCatalogFromSource() {
   if (!SOURCE_SHEET_ID) {
     throw new Error('GOOGLE_SOURCE_SHEET_ID nao configurado')
   }
@@ -114,20 +128,106 @@ export async function listCatalog(query: CatalogQuery = {}) {
     product.variacoes.push(variant)
   }
 
-  const catalog = Array.from(productMap.values()).map((product) => {
-    const activeVariants = product.variacoes.filter((variant) => variant.ativo)
-    return {
-      ...product,
-      ativo: activeVariants.length > 0,
-      fotoRef: product.fotoRef || '/placeholder-product.svg',
-    }
-  })
-
-  return filterCatalog(catalog, query).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
+  return Array.from(productMap.values())
+    .map((product) => {
+      const activeVariants = product.variacoes.filter((variant) => variant.ativo)
+      return {
+        ...product,
+        ativo: activeVariants.length > 0,
+        fotoRef: product.fotoRef || '/placeholder-product.svg',
+      }
+    })
+    .sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
 }
 
-export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariacao?: string }) {
-  const catalog = await listCatalog({})
+async function getCatalogBase(options: { forceRefresh?: boolean } = {}) {
+  return getCatalogCache(fetchCatalogFromSource, options)
+}
+
+export async function listCatalog(query: CatalogQuery = {}) {
+  const { items } = await getCatalogBase({ forceRefresh: query.forceRefresh })
+  return filterCatalog(items, query)
+}
+
+export async function enrichCatalogProductImages(products: CatalogProduct[]) {
+  const pendingProducts = products.filter(
+    (product) => product.fotoDriveKind === 'folder' && product.fotoFileId && !isResolvedDriveImage(product),
+  )
+
+  if (pendingProducts.length === 0) {
+    return products
+  }
+
+  const resolvedEntries = await Promise.all(
+    pendingProducts.map(async (product) => {
+      try {
+        const image = await resolveReferenceImage(buildGoogleDriveFolderLink(product.fotoFileId))
+
+        if (!image.usableUrl) {
+          return null
+        }
+
+        return {
+          skuBase: product.skuBase,
+          fotoRef: image.usableUrl,
+          fotoFileId: image.fileId ?? product.fotoFileId,
+        }
+      } catch {
+        return null
+      }
+    }),
+  )
+
+  const resolvedMap = new Map(
+    resolvedEntries
+      .filter((entry): entry is { skuBase: string; fotoRef: string; fotoFileId: string } => Boolean(entry?.fotoRef && entry.fotoFileId))
+      .map((entry) => [entry.skuBase, entry]),
+  )
+
+  if (resolvedMap.size === 0) {
+    return products
+  }
+
+  await patchCatalogCacheItems((items) =>
+    items.map((product) => {
+      const resolved = resolvedMap.get(product.skuBase)
+
+      if (!resolved) {
+        return product
+      }
+
+      return {
+        ...product,
+        fotoRef: resolved.fotoRef,
+        fotoFileId: resolved.fotoFileId,
+        fotoDriveKind: 'file',
+      }
+    }),
+  )
+
+  return products.map((product) => {
+    const resolved = resolvedMap.get(product.skuBase)
+
+    if (!resolved) {
+      return product
+    }
+
+    return {
+      ...product,
+      fotoRef: resolved.fotoRef,
+      fotoFileId: resolved.fotoFileId,
+      fotoDriveKind: 'file' as const,
+    }
+  })
+}
+
+export async function getCatalogCacheMetadata(options: { forceRefresh?: boolean } = {}) {
+  const { metadata } = await getCatalogBase(options)
+  return metadata satisfies CatalogCacheMetadata
+}
+
+export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariacao?: string; forceRefresh?: boolean }) {
+  const { items: catalog } = await getCatalogBase({ forceRefresh: input.forceRefresh })
   const product = catalog.find((item) => item.skuBase === normalizeSku(input.skuBase))
 
   if (!product) {
@@ -142,4 +242,39 @@ export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariac
     product,
     variant,
   }
+}
+
+export async function updateCatalogVariantStatuses(statusBySku: Record<string, boolean>) {
+  const normalizedEntries = Object.entries(statusBySku).map(([sku, active]) => [normalizeSku(sku), active] as const)
+  const normalizedMap = new Map(normalizedEntries)
+
+  return patchCatalogCacheItems((items) =>
+    items.map((product) => {
+      let hasRelevantChange = false
+
+      const variacoes = product.variacoes.map((variant) => {
+        const nextStatus = normalizedMap.get(normalizeSku(variant.sku))
+
+        if (typeof nextStatus !== 'boolean') {
+          return variant
+        }
+
+        hasRelevantChange = true
+        return {
+          ...variant,
+          ativo: nextStatus,
+        }
+      })
+
+      if (!hasRelevantChange) {
+        return product
+      }
+
+      return {
+        ...product,
+        variacoes,
+        ativo: variacoes.some((variant) => Boolean(variant.ativo)),
+      }
+    }),
+  )
 }

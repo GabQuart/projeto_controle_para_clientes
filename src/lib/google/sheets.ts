@@ -44,6 +44,23 @@ export async function updateSheetRow(spreadsheetId: string, range: string, value
   })
 }
 
+export async function updateRowsByLookup(
+  spreadsheetId: string,
+  sheetName: string,
+  keyHeader: string,
+  updates: Array<{ key: string; values: Record<string, string> }>,
+) {
+  await requestAppsScript<null>('updateRowsByLookup', {
+    method: 'POST',
+    body: {
+      spreadsheetId,
+      sheetName,
+      keyHeader,
+      updates,
+    },
+  })
+}
+
 export async function getSpreadsheetSheetTitles(spreadsheetId: string) {
   return requestAppsScript<string[]>('getSpreadsheetSheetTitles', {
     query: {
