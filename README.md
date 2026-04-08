@@ -57,8 +57,16 @@ APPS_SCRIPT_TOKEN=
 GOOGLE_SOURCE_SHEET_ID=1A_aDf5GrnTWLdICVND1onvNDeMxWuMnur9tW9uQwZ_g
 GOOGLE_OUTPUT_SHEET_ID=1QjTHwp8qnkaFOIVRHuDxXuo7si7trshjB6aSa4Pj1L0
 GOOGLE_DRIVE_FOLDER_ID=1TljgB91WOfYUthu8kIIXPfSheFv-qsym
+CATALOG_CACHE_TTL_MINUTES=10
 NEXT_PUBLIC_APP_NAME=Catalogo Marketplace
 ```
+
+## Cache local do catalogo
+
+- O catalogo agora e persistido em `/.cache/catalog.json` no servidor para acelerar buscas, paginacao e recargas da tela.
+- O tempo de vida do cache e controlado por `CATALOG_CACHE_TTL_MINUTES`.
+- Quando o cache ainda esta valido, o sistema reutiliza o JSON local e evita nova leitura completa no Apps Script.
+- Para forcar atualizacao imediata do cache, use `GET /api/catalogo?refresh=true`.
 
 ## Publicando o Apps Script
 
@@ -91,6 +99,8 @@ A aplicacao continua resolvendo a imagem por uma rota interna do Next, mas o URL
 
 - `GET /api/catalogo?clienteCod=KRICA&termo=blusa`
   - Retorna produtos e variacoes filtrados.
+- `GET /api/catalogo?clienteCod=KRICA&termo=blusa&refresh=true`
+  - Forca recarga do catalogo na fonte e regrava o cache JSON local.
 - `GET /api/solicitacoes?status=nao_concluido&loja=KricaKids`
   - Lista solicitacoes gravadas na planilha de saida.
 - `POST /api/solicitacoes`
@@ -116,6 +126,7 @@ A aplicacao continua resolvendo a imagem por uma rota interna do Next, mas o URL
 - Ainda nao existem testes automatizados.
 - As imagens do Drive dependem de URLs renderizaveis no navegador; em ambientes mais fechados pode ser necessario manter placeholder ou tornar os arquivos acessiveis por link.
 - O Apps Script atual foi desenhado para esta primeira versao e nao substitui um backend robusto para cenarios de alto volume.
+- O cache em JSON funciona muito bem em execucao local ou servidores persistentes; em ambientes serverless/ephemeros ele pode ser recriado com mais frequencia.
 
 ## Migracao futura para PostgreSQL
 

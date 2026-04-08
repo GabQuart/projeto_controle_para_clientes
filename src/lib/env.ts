@@ -11,3 +11,14 @@
 export function getOptionalEnv(name: string) {
   return process.env[name]?.trim() || ''
 }
+
+export function getOptionalIntEnv(name: string, fallback: number) {
+  const value = getOptionalEnv(name)
+  const parsed = Number.parseInt(value, 10)
+
+  if (Number.isNaN(parsed)) {
+    return fallback
+  }
+
+  return parsed
+}

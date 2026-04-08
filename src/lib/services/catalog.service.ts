@@ -1,8 +1,9 @@
-﻿import { readMultipleSheetTabs } from '@/lib/google/sheets'
+import { readMultipleSheetTabs } from '@/lib/google/sheets'
 import { compactText, normalizeText, splitList, toBooleanFlag } from '@/lib/utils/format'
 import { extractGoogleDriveId } from '@/lib/google/drive'
 import { extractSkuBase, matchesSkuTerm, normalizeSku } from '@/lib/utils/sku'
-import type { CatalogProduct, CatalogQuery, CatalogVariant } from '@/types/catalog'
+import { getCatalogCache } from '@/lib/services/catalog-cache.service'
+import type { CatalogCacheMetadata, CatalogProduct, CatalogQuery, CatalogVariant } from '@/types/catalog'
 
 const SOURCE_SHEET_ID = process.env.GOOGLE_SOURCE_SHEET_ID ?? ''
 const PRODUCT_SHEET = 'CATALOGO_PRODUTOS'
@@ -88,7 +89,7 @@ function filterCatalog(products: CatalogProduct[], query: CatalogQuery) {
   })
 }
 
-export async function listCatalog(query: CatalogQuery = {}) {
+async function fetchCatalogFromSource() {
   if (!SOURCE_SHEET_ID) {
     throw new Error('GOOGLE_SOURCE_SHEET_ID nao configurado')
   }
@@ -114,20 +115,34 @@ export async function listCatalog(query: CatalogQuery = {}) {
     product.variacoes.push(variant)
   }
 
-  const catalog = Array.from(productMap.values()).map((product) => {
-    const activeVariants = product.variacoes.filter((variant) => variant.ativo)
-    return {
-      ...product,
-      ativo: activeVariants.length > 0,
-      fotoRef: product.fotoRef || '/placeholder-product.svg',
-    }
-  })
+  return Array.from(productMap.values())
+    .map((product) => {
+      const activeVariants = product.variacoes.filter((variant) => variant.ativo)
+      return {
+        ...product,
+        ativo: activeVariants.length > 0,
+        fotoRef: product.fotoRef || '/placeholder-product.svg',
+      }
+    })
+    .sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
+}
 
-  return filterCatalog(catalog, query).sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
+async function getCatalogBase(options: { forceRefresh?: boolean } = {}) {
+  return getCatalogCache(fetchCatalogFromSource, options)
+}
+
+export async function listCatalog(query: CatalogQuery = {}) {
+  const { items } = await getCatalogBase({ forceRefresh: query.forceRefresh })
+  return filterCatalog(items, query)
+}
+
+export async function getCatalogCacheMetadata(options: { forceRefresh?: boolean } = {}) {
+  const { metadata } = await getCatalogBase(options)
+  return metadata satisfies CatalogCacheMetadata
 }
 
 export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariacao?: string }) {
-  const catalog = await listCatalog({})
+  const { items: catalog } = await getCatalogBase()
   const product = catalog.find((item) => item.skuBase === normalizeSku(input.skuBase))
 
   if (!product) {

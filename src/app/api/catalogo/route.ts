@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { listCatalog } from '@/lib/services/catalog.service'
+import { getCatalogCacheMetadata, listCatalog } from '@/lib/services/catalog.service'
 
 const DEFAULT_PAGE_SIZE = 10
 const MAX_PAGE_SIZE = 50
@@ -14,15 +14,23 @@ function parsePositiveInt(value: string | null, fallback: number) {
   return parsed
 }
 
+function parseBoolean(value: string | null) {
+  return value === '1' || value === 'true'
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const clienteCod = searchParams.get('clienteCod') ?? undefined
     const termo = searchParams.get('termo') ?? undefined
+    const forceRefresh = parseBoolean(searchParams.get('refresh'))
     const page = parsePositiveInt(searchParams.get('page'), 1)
     const pageSize = Math.min(parsePositiveInt(searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE)
 
-    const data = await listCatalog({ clienteCod, termo })
+    const [data, cache] = await Promise.all([
+      listCatalog({ clienteCod, termo, forceRefresh }),
+      getCatalogCacheMetadata({ forceRefresh }),
+    ])
     const total = data.length
     const totalPages = Math.max(1, Math.ceil(total / pageSize))
     const currentPage = Math.min(page, totalPages)
@@ -39,6 +47,7 @@ export async function GET(request: Request) {
         hasPreviousPage: currentPage > 1,
         hasNextPage: currentPage < totalPages,
       },
+      cache,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Falha ao carregar catalogo'

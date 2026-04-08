@@ -27,6 +27,7 @@ export type CatalogQuery = {
   termo?: string
   page?: number
   pageSize?: number
+  forceRefresh?: boolean
 }
 
 export type CatalogPagination = {
@@ -36,4 +37,9 @@ export type CatalogPagination = {
   totalPages: number
   hasPreviousPage: boolean
   hasNextPage: boolean
+}
+
+export type CatalogCacheMetadata = {
+  updatedAt: string
+  source: 'cache' | 'apps_script'
 }
