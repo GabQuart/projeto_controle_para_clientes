@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getCatalogCacheMetadata, listCatalog } from '@/lib/services/catalog.service'
+import { enrichCatalogProductImages, getCatalogCacheMetadata, listCatalog } from '@/lib/services/catalog.service'
 
 const DEFAULT_PAGE_SIZE = 10
 const MAX_PAGE_SIZE = 50
@@ -36,9 +36,10 @@ export async function GET(request: Request) {
     const currentPage = Math.min(page, totalPages)
     const startIndex = (currentPage - 1) * pageSize
     const paginatedData = data.slice(startIndex, startIndex + pageSize)
+    const enrichedData = await enrichCatalogProductImages(paginatedData)
 
     return NextResponse.json({
-      data: paginatedData,
+      data: enrichedData,
       pagination: {
         page: currentPage,
         pageSize,

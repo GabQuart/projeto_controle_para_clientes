@@ -16,6 +16,7 @@ export type CatalogProduct = {
   titulo: string
   fotoRef?: string
   fotoFileId?: string
+  fotoDriveKind?: 'file' | 'folder'
   cores?: string[]
   tamanhos?: string[]
   ativo?: boolean

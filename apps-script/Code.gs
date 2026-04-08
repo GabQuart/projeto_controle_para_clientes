@@ -272,23 +272,48 @@ function resolveDriveImage_(linkOrId) {
 function getFirstImageFromFolder_(folderId) {
   var folder = DriveApp.getFolderById(folderId)
   var files = folder.getFiles()
+  var fallbackImage = null
 
   while (files.hasNext()) {
     var file = files.next()
-    if (String(file.getMimeType() || '').indexOf('image/') === 0) {
-      var fileId = file.getId()
-      return {
-        folderId: folderId,
-        fileId: fileId,
-        originalUrl: buildDriveFileViewUrl_(fileId),
-        usableUrl: buildDriveThumbnailUrl_(fileId),
-      }
+    if (String(file.getMimeType() || '').indexOf('image/') !== 0) {
+      continue
     }
+
+    if (!fallbackImage) {
+      fallbackImage = file
+    }
+
+    if (isMainImageName_(file.getName())) {
+      return mapDriveFile_(file, folderId)
+    }
+  }
+
+  if (fallbackImage) {
+    return mapDriveFile_(fallbackImage, folderId)
   }
 
   return {
     folderId: folderId,
     originalUrl: 'https://drive.google.com/drive/folders/' + folderId,
+  }
+}
+
+function isMainImageName_(fileName) {
+  var normalized = String(fileName || '').toLowerCase().trim()
+  return normalized === 'imagem_principal' ||
+    normalized.indexOf('imagem_principal.') === 0 ||
+    normalized.indexOf('imagem principal.') === 0 ||
+    normalized === 'imagem principal'
+}
+
+function mapDriveFile_(file, folderId) {
+  var fileId = file.getId()
+  return {
+    folderId: folderId,
+    fileId: fileId,
+    originalUrl: buildDriveFileViewUrl_(fileId),
+    usableUrl: buildDriveThumbnailUrl_(fileId),
   }
 }
 

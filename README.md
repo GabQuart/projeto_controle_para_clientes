@@ -95,7 +95,11 @@ Se esses arquivos ja estao na sua conta Google ou compartilhados para voce, o Ap
 
 ## Observacao sobre imagens
 
-A aplicacao continua resolvendo a imagem por uma rota interna do Next, mas o URL final usa thumbnail/view do Drive. Para a miniatura aparecer no navegador com consistencia, o arquivo de imagem precisa estar acessivel pelo link do Drive.
+A aplicacao procura primeiro um arquivo chamado `imagem_principal` dentro da pasta do produto no Drive. Se encontrar, usa essa imagem na capa do produto; se nao encontrar, cai no primeiro arquivo de imagem da pasta.
+
+Quando uma imagem principal e resolvida, o resultado fica salvo no cache JSON local do catalogo para evitar novas consultas ao Drive nas proximas cargas.
+
+Para a miniatura aparecer no navegador com consistencia, o arquivo de imagem precisa estar acessivel pelo link do Drive.
 
 ## Endpoints
 

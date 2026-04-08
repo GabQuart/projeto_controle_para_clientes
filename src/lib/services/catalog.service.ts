@@ -1,6 +1,12 @@
 import { readMultipleSheetTabs } from '@/lib/google/sheets'
+import {
+  buildGoogleDriveFolderLink,
+  extractGoogleDriveId,
+  isGoogleDriveFolderLink,
+  resolveReferenceImage,
+} from '@/lib/google/drive'
 import { compactText, normalizeText, splitList, toBooleanFlag } from '@/lib/utils/format'
-import { extractGoogleDriveId } from '@/lib/google/drive'
+import { buildDriveThumbnailUrl } from '@/lib/utils/drive-url'
 import { extractSkuBase, matchesSkuTerm, normalizeSku } from '@/lib/utils/sku'
 import { getCatalogCache, patchCatalogCacheItems } from '@/lib/services/catalog-cache.service'
 import type { CatalogCacheMetadata, CatalogProduct, CatalogQuery, CatalogVariant } from '@/types/catalog'
@@ -17,7 +23,7 @@ function buildProductImageApiPath(link?: string) {
     return ''
   }
 
-  const kind = (link ?? '').includes('/folders/') ? 'folder' : 'file'
+  const kind = isGoogleDriveFolderLink(link) ? 'folder' : 'file'
   return `/api/catalogo/imagem/${driveId}?kind=${kind}`
 }
 
@@ -38,6 +44,8 @@ function buildProductRow(row: Record<string, string | undefined>, storeByClient:
   const clienteCod = compactText(row.cd_cliente)
   const skuBase = normalizeSku(row.id_produto || `${clienteCod}.${row.num_prod}`)
   const fotoLink = row['midia__hyperlink'] ?? row.midia
+  const fotoDriveKind = isGoogleDriveFolderLink(fotoLink) ? 'folder' : 'file'
+  const fotoFileId = extractGoogleDriveId(fotoLink)
 
   return {
     id: skuBase,
@@ -45,8 +53,9 @@ function buildProductRow(row: Record<string, string | undefined>, storeByClient:
     loja: storeByClient[clienteCod] ?? clienteCod,
     skuBase,
     titulo: compactText(row.Titulo),
-    fotoRef: buildProductImageApiPath(fotoLink),
-    fotoFileId: extractGoogleDriveId(fotoLink),
+    fotoRef: fotoDriveKind === 'file' ? buildDriveThumbnailUrl(fotoFileId) : buildProductImageApiPath(fotoLink),
+    fotoFileId,
+    fotoDriveKind,
     cores: splitList(row.Cores),
     tamanhos: splitList(row.Tamanhos),
     ativo: true,
@@ -87,6 +96,10 @@ function filterCatalog(products: CatalogProduct[], query: CatalogQuery) {
 
     return matchesTitle || matchesSku
   })
+}
+
+function isResolvedDriveImage(product: CatalogProduct) {
+  return Boolean(product.fotoRef?.includes('drive.google.com/thumbnail'))
 }
 
 async function fetchCatalogFromSource() {
@@ -134,6 +147,78 @@ async function getCatalogBase(options: { forceRefresh?: boolean } = {}) {
 export async function listCatalog(query: CatalogQuery = {}) {
   const { items } = await getCatalogBase({ forceRefresh: query.forceRefresh })
   return filterCatalog(items, query)
+}
+
+export async function enrichCatalogProductImages(products: CatalogProduct[]) {
+  const pendingProducts = products.filter(
+    (product) => product.fotoDriveKind === 'folder' && product.fotoFileId && !isResolvedDriveImage(product),
+  )
+
+  if (pendingProducts.length === 0) {
+    return products
+  }
+
+  const resolvedEntries = await Promise.all(
+    pendingProducts.map(async (product) => {
+      try {
+        const image = await resolveReferenceImage(buildGoogleDriveFolderLink(product.fotoFileId))
+
+        if (!image.usableUrl) {
+          return null
+        }
+
+        return {
+          skuBase: product.skuBase,
+          fotoRef: image.usableUrl,
+          fotoFileId: image.fileId ?? product.fotoFileId,
+        }
+      } catch {
+        return null
+      }
+    }),
+  )
+
+  const resolvedMap = new Map(
+    resolvedEntries
+      .filter((entry): entry is { skuBase: string; fotoRef: string; fotoFileId: string } => Boolean(entry?.fotoRef && entry.fotoFileId))
+      .map((entry) => [entry.skuBase, entry]),
+  )
+
+  if (resolvedMap.size === 0) {
+    return products
+  }
+
+  await patchCatalogCacheItems((items) =>
+    items.map((product) => {
+      const resolved = resolvedMap.get(product.skuBase)
+
+      if (!resolved) {
+        return product
+      }
+
+      return {
+        ...product,
+        fotoRef: resolved.fotoRef,
+        fotoFileId: resolved.fotoFileId,
+        fotoDriveKind: 'file',
+      }
+    }),
+  )
+
+  return products.map((product) => {
+    const resolved = resolvedMap.get(product.skuBase)
+
+    if (!resolved) {
+      return product
+    }
+
+    return {
+      ...product,
+      fotoRef: resolved.fotoRef,
+      fotoFileId: resolved.fotoFileId,
+      fotoDriveKind: 'file' as const,
+    }
+  })
 }
 
 export async function getCatalogCacheMetadata(options: { forceRefresh?: boolean } = {}) {
