@@ -25,4 +25,15 @@ export type CatalogProduct = {
 export type CatalogQuery = {
   clienteCod?: string
   termo?: string
+  page?: number
+  pageSize?: number
+}
+
+export type CatalogPagination = {
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+  hasPreviousPage: boolean
+  hasNextPage: boolean
 }

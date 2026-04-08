@@ -4,18 +4,31 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { ActionModal } from '@/components/ActionModal'
+import { PaginationControls } from '@/components/PaginationControls'
 import { ProductTable } from '@/components/ProductTable'
 import { SearchBar } from '@/components/SearchBar'
-import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
+import type { CatalogPagination, CatalogProduct, CatalogVariant } from '@/types/catalog'
 import type { Operator } from '@/types/operator'
 
 const STORAGE_KEY = 'catalogo-marketplace.operator'
+const PAGE_SIZE = 10
+
+const EMPTY_PAGINATION: CatalogPagination = {
+  page: 1,
+  pageSize: PAGE_SIZE,
+  total: 0,
+  totalPages: 1,
+  hasPreviousPage: false,
+  hasNextPage: false,
+}
 
 export default function CatalogoPage() {
   const router = useRouter()
   const [operator, setOperator] = useState<Operator | null>(null)
   const [products, setProducts] = useState<CatalogProduct[]>([])
   const [search, setSearch] = useState('')
+  const [pagination, setPagination] = useState<CatalogPagination>(EMPTY_PAGINATION)
+  const [currentPage, setCurrentPage] = useState(1)
   const [expandedIds, setExpandedIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -49,6 +62,8 @@ export default function CatalogoPage() {
       try {
         const params = new URLSearchParams()
         params.set('clienteCod', operator.clienteCod)
+        params.set('page', String(currentPage))
+        params.set('pageSize', String(PAGE_SIZE))
         if (search.trim()) {
           params.set('termo', search.trim())
         }
@@ -61,9 +76,16 @@ export default function CatalogoPage() {
         }
 
         setProducts(payload.data)
+        setPagination(payload.pagination ?? EMPTY_PAGINATION)
+
+        if (payload.pagination?.page && payload.pagination.page !== currentPage) {
+          setCurrentPage(payload.pagination.page)
+        }
       } catch (fetchError) {
         if ((fetchError as Error).name !== 'AbortError') {
           setError(fetchError instanceof Error ? fetchError.message : 'Falha ao carregar catalogo')
+          setProducts([])
+          setPagination(EMPTY_PAGINATION)
         }
       } finally {
         setLoading(false)
@@ -74,15 +96,31 @@ export default function CatalogoPage() {
       controller.abort()
       window.clearTimeout(timeout)
     }
-  }, [operator, search])
+  }, [currentPage, operator, search])
 
   const summary = useMemo(() => {
     const variants = products.reduce((total, product) => total + product.variacoes.length, 0)
-    return { products: products.length, variants }
-  }, [products])
+    return { products: products.length, variants, totalProducts: pagination.total }
+  }, [pagination.total, products])
 
   function toggleExpanded(skuBase: string) {
     setExpandedIds((current) => (current.includes(skuBase) ? current.filter((item) => item !== skuBase) : [...current, skuBase]))
+  }
+
+  function handleSearchChange(value: string) {
+    setSearch(value)
+    setCurrentPage(1)
+    setExpandedIds([])
+  }
+
+  function handlePageChange(page: number) {
+    if (page === currentPage || page < 1 || page > pagination.totalPages) {
+      return
+    }
+
+    setCurrentPage(page)
+    setExpandedIds([])
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function handleLogout() {
@@ -116,11 +154,13 @@ export default function CatalogoPage() {
         </div>
 
         <div className="mt-8 grid gap-4 lg:grid-cols-[2fr_1fr]">
-          <SearchBar value={search} onChange={setSearch} />
+          <SearchBar value={search} onChange={handleSearchChange} />
           <div className="rounded-3xl bg-mist p-4 text-sm text-ink/80">
             <p className="font-semibold">Resumo atual</p>
-            <p className="mt-2">{summary.products} produtos carregados</p>
-            <p>{summary.variants} variacoes disponiveis</p>
+            <p className="mt-2">
+              Exibindo {summary.products} de {summary.totalProducts} produtos
+            </p>
+            <p>{summary.variants} variacoes nesta pagina</p>
           </div>
         </div>
       </section>
@@ -137,6 +177,8 @@ export default function CatalogoPage() {
             onAction={setSelectedItem}
           />
         )}
+
+        {!loading ? <div className="mt-4"><PaginationControls pagination={pagination} onPageChange={handlePageChange} /></div> : null}
       </section>
 
       <ActionModal
