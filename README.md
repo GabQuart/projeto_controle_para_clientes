@@ -54,17 +54,17 @@ O sistema le o catalogo em uma planilha Google Sheets somente leitura, organiza 
 ```env
 APPS_SCRIPT_WEB_APP_URL=https://script.google.com/macros/s/SEU_DEPLOYMENT_ID/exec
 APPS_SCRIPT_TOKEN=
-GOOGLE_SOURCE_SHEET_ID=1A_aDf5GrnTWLdICVND1onvNDeMxWuMnur9tW9uQwZ_g
-GOOGLE_OUTPUT_SHEET_ID=1QjTHwp8qnkaFOIVRHuDxXuo7si7trshjB6aSa4Pj1L0
-GOOGLE_DRIVE_FOLDER_ID=1TljgB91WOfYUthu8kIIXPfSheFv-qsym
-NEXT_PUBLIC_APP_NAME=Catalogo Marketplace
+GOOGLE_SOURCE_SHEET_ID=1cahve da planilha
+GOOGLE_OUTPUT_SHEET_ID= sua chave da planilha
+GOOGLE_DRIVE_FOLDER_ID=sua chave da pasta
+NEXT_PUBLIC_APP_NAME=nome da planilha
 ```
 
 ## Publicando o Apps Script
 
 1. Acesse [script.new](https://script.new).
 2. Apague o conteudo padrao.
-3. Cole o conteudo de [apps-script/Code.gs](C:\Users\Manalink\Documents\Projeto_controle_clientes\apps-script\Code.gs).
+3. Cole o conteudo de [apps-script/Code.gs](C:\Users\usuario_seunome\Documents\Projeto_controle_clientes\apps-script\Code.gs).
 4. Salve o projeto.
 5. Em `Configuracoes do projeto`, opcionalmente adicione a propriedade de script `APPS_SCRIPT_TOKEN` para proteger o endpoint.
 6. Clique em `Implantar > Nova implantacao`.
