@@ -54,11 +54,11 @@ O sistema le o catalogo em uma planilha Google Sheets somente leitura, organiza 
 ```env
 APPS_SCRIPT_WEB_APP_URL=https://script.google.com/macros/s/SEU_DEPLOYMENT_ID/exec
 APPS_SCRIPT_TOKEN=
-GOOGLE_SOURCE_SHEET_ID=1A_aDf5GrnTWLdICVND1onvNDeMxWuMnur9tW9uQwZ_g
-GOOGLE_OUTPUT_SHEET_ID=1QjTHwp8qnkaFOIVRHuDxXuo7si7trshjB6aSa4Pj1L0
-GOOGLE_DRIVE_FOLDER_ID=1TljgB91WOfYUthu8kIIXPfSheFv-qsym
+GOOGLE_SOURCE_SHEET_ID=seu id
+GOOGLE_OUTPUT_SHEET_ID=seu id
+GOOGLE_DRIVE_FOLDER_ID= seu id
 CATALOG_CACHE_TTL_MINUTES=10
-NEXT_PUBLIC_APP_NAME=Catalogo Marketplace
+NEXT_PUBLIC_APP_NAME=nome da planilha
 ```
 
 ## Cache local do catalogo
