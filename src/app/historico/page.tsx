@@ -5,15 +5,13 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { HistoryTable } from '@/components/HistoryTable'
 import { SearchBar } from '@/components/SearchBar'
-import type { ChangeRequest, ChangeRequestStatus } from '@/types/request'
-import type { Operator } from '@/types/operator'
 import { normalizeText } from '@/lib/utils/format'
-
-const STORAGE_KEY = 'catalogo-marketplace.operator'
+import type { UserAccount } from '@/types/account'
+import type { ChangeRequest, ChangeRequestStatus } from '@/types/request'
 
 export default function HistoricoPage() {
   const router = useRouter()
-  const [operator, setOperator] = useState<Operator | null>(null)
+  const [account, setAccount] = useState<UserAccount | null>(null)
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<ChangeRequestStatus | 'todos'>('todos')
@@ -21,26 +19,35 @@ export default function HistoricoPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const storedOperator = sessionStorage.getItem(STORAGE_KEY)
+    async function loadSession() {
+      try {
+        const response = await fetch('/api/auth/me')
+        const payload = await response.json()
 
-    if (!storedOperator) {
-      router.replace('/login')
-      return
+        if (!response.ok) {
+          throw new Error(payload.error || 'Falha ao carregar sessao')
+        }
+
+        if (!payload.account) {
+          router.replace('/login')
+          return
+        }
+
+        setAccount(payload.account)
+      } catch {
+        router.replace('/login')
+      }
     }
 
-    try {
-      setOperator(JSON.parse(storedOperator) as Operator)
-    } catch {
-      router.replace('/login')
-    }
+    loadSession()
   }, [router])
 
   useEffect(() => {
-    if (!operator) {
+    if (!account) {
       return
     }
 
-    const currentOperator = operator
+    const currentAccount = account
 
     async function loadHistory() {
       setLoading(true)
@@ -48,7 +55,8 @@ export default function HistoricoPage() {
 
       try {
         const params = new URLSearchParams()
-        params.set('loja', currentOperator.loja)
+        params.set('email', currentAccount.email)
+
         if (status !== 'todos') {
           params.set('status', status)
         }
@@ -69,7 +77,7 @@ export default function HistoricoPage() {
     }
 
     loadHistory()
-  }, [operator, status])
+  }, [account, status])
 
   const filteredRequests = useMemo(() => {
     const normalized = normalizeText(search)
@@ -91,10 +99,10 @@ export default function HistoricoPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Pulse de solicitacoes</p>
             <h1 className="mt-3 font-display text-2xl font-semibold text-ink sm:text-3xl lg:text-4xl">
-              Historico operacional por loja e responsavel
+              Historico recortado pela conta autenticada
             </h1>
             <p className="mt-3 text-sm text-steel sm:text-base">
-              Filtrando inicialmente pela loja do operador atual: <span className="font-semibold text-ink">{operator?.loja ?? 'Carregando...'}</span>
+              Sessao atual: <span className="font-semibold text-ink">{account?.nome ?? 'Carregando...'}</span>
             </p>
           </div>
           <Link

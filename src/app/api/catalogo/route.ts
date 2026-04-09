@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { filterCatalogProductsForAccount, validateActiveAccount } from '@/lib/services/account.service'
 import { enrichCatalogProductImages, getCatalogCacheMetadata, listCatalog } from '@/lib/services/catalog.service'
 
 const DEFAULT_PAGE_SIZE = 10
@@ -21,21 +22,42 @@ function parseBoolean(value: string | null) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
+    const email = searchParams.get('email') ?? undefined
     const clienteCod = searchParams.get('clienteCod') ?? undefined
+    const loja = searchParams.get('loja') ?? undefined
+    const fornecedor = searchParams.get('fornecedor') ?? undefined
     const termo = searchParams.get('termo') ?? undefined
     const forceRefresh = parseBoolean(searchParams.get('refresh'))
     const page = parsePositiveInt(searchParams.get('page'), 1)
     const pageSize = Math.min(parsePositiveInt(searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE)
 
+    const account = email ? await validateActiveAccount(email) : null
     const [data, cache] = await Promise.all([
-      listCatalog({ clienteCod, termo, forceRefresh }),
+      listCatalog({ termo, forceRefresh }),
       getCatalogCacheMetadata({ forceRefresh }),
     ])
-    const total = data.length
+    const scopedData = account ? filterCatalogProductsForAccount(account, data) : data
+    const normalizedFornecedor = (fornecedor ?? '').trim().toUpperCase()
+    const filteredData = scopedData.filter((product) => {
+      if (clienteCod && product.clienteCod !== clienteCod) {
+        return false
+      }
+
+      if (loja && product.loja !== loja) {
+        return false
+      }
+
+      if (normalizedFornecedor && product.clienteCod.slice(0, 5).toUpperCase() !== normalizedFornecedor) {
+        return false
+      }
+
+      return true
+    })
+    const total = filteredData.length
     const totalPages = Math.max(1, Math.ceil(total / pageSize))
     const currentPage = Math.min(page, totalPages)
     const startIndex = (currentPage - 1) * pageSize
-    const paginatedData = data.slice(startIndex, startIndex + pageSize)
+    const paginatedData = filteredData.slice(startIndex, startIndex + pageSize)
     const enrichedData = await enrichCatalogProductImages(paginatedData)
 
     return NextResponse.json({

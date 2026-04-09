@@ -1,17 +1,19 @@
 import { appendSheetRow, getSpreadsheetSheetTitles, readSheetTab, updateRowsByLookup, updateSheetRow } from '@/lib/google/sheets'
+import { validateActiveAccount } from '@/lib/services/account.service'
+import { getCatalogSnapshotItem, updateCatalogVariantStatuses } from '@/lib/services/catalog.service'
 import { compactText, normalizeText } from '@/lib/utils/format'
 import { createSimpleId } from '@/lib/utils/id'
 import { normalizeSku } from '@/lib/utils/sku'
-import { getCatalogSnapshotItem, updateCatalogVariantStatuses } from '@/lib/services/catalog.service'
-import { validateActiveOperator } from '@/lib/services/operator.service'
+import type { BulkCreateRequestInput, ChangeRequest, ChangeRequestFilters, RequestedVariantStock } from '@/types/request'
 import type { CatalogVariant } from '@/types/catalog'
-import type { ChangeRequest, ChangeRequestFilters, RequestedVariantStock } from '@/types/request'
+import type { UserAccount } from '@/types/account'
 
 const OUTPUT_SHEET_ID = process.env.GOOGLE_OUTPUT_SHEET_ID ?? ''
 const SOURCE_SHEET_ID = process.env.GOOGLE_SOURCE_SHEET_ID ?? ''
 const SOURCE_VARIANT_SHEET = 'VARIACOES_SKU'
 const REQUEST_HEADERS = [
   'id',
+  'loteId',
   'dataAbertura',
   'operadorEmail',
   'operadorNome',
@@ -29,7 +31,7 @@ const REQUEST_HEADERS = [
   'variacoesSelecionadas',
   'estoqueGeral',
   'estoquePorVariacao',
-]
+] as const
 
 let cachedOutputSheetName = ''
 
@@ -45,7 +47,7 @@ async function getOutputSheetName() {
   }
 
   const titles = await getSpreadsheetSheetTitles(OUTPUT_SHEET_ID)
-  cachedOutputSheetName = titles[0] ?? 'Página1'
+  cachedOutputSheetName = titles[0] ?? 'Pagina1'
   return cachedOutputSheetName
 }
 
@@ -65,12 +67,12 @@ function toColumnLetter(columnNumber: number) {
 async function ensureRequestSheetHeaders() {
   const sheetName = await getOutputSheetName()
   const lastColumn = toColumnLetter(REQUEST_HEADERS.length)
-  await updateSheetRow(OUTPUT_SHEET_ID, `${sheetName}!A1:${lastColumn}1`, [REQUEST_HEADERS])
+  await updateSheetRow(OUTPUT_SHEET_ID, `${sheetName}!A1:${lastColumn}1`, [REQUEST_HEADERS as unknown as string[]])
   return sheetName
 }
 
 function validateRequestPayload(payload: Partial<ChangeRequest>) {
-  const requiredFields = ['operadorEmail', 'clienteCod', 'loja', 'skuBase', 'titulo', 'tipoAlteracao', 'detalhe'] as const
+  const requiredFields = ['operadorEmail', 'skuBase', 'tipoAlteracao', 'detalhe'] as const
   const missing = requiredFields.filter((field) => !compactText(String(payload[field] ?? '')))
 
   if (missing.length > 0) {
@@ -127,7 +129,7 @@ function buildRequestRow(request: ChangeRequest) {
       case 'estoqueGeral':
         return request.estoqueGeral === undefined ? '' : String(request.estoqueGeral)
       default:
-        return String(request[header as keyof ChangeRequest] ?? '')
+        return String(request[header] ?? '')
     }
   })
 }
@@ -148,6 +150,7 @@ function matchesFilters(request: ChangeRequest, filters: ChangeRequestFilters) {
   if (filters.sku) {
     const normalized = normalizeSku(filters.sku)
     const target = [request.skuBase, request.skuVariacao, ...(request.variacoesSelecionadas ?? [])].map((item) => normalizeSku(item))
+
     if (!target.some((item) => item.includes(normalized))) {
       return false
     }
@@ -156,11 +159,7 @@ function matchesFilters(request: ChangeRequest, filters: ChangeRequestFilters) {
   return true
 }
 
-function resolveSelectedVariants(
-  variants: CatalogVariant[],
-  payload: Partial<ChangeRequest>,
-  fallbackVariant?: CatalogVariant,
-) {
+function resolveSelectedVariants(variants: CatalogVariant[], payload: Partial<ChangeRequest>, fallbackVariant?: CatalogVariant) {
   if (fallbackVariant) {
     return [fallbackVariant]
   }
@@ -218,19 +217,25 @@ async function applySourceStatusUpdate(variants: CatalogVariant[], activeValue: 
     throw new Error('GOOGLE_SOURCE_SHEET_ID nao configurado')
   }
 
-  await updateRowsByLookup(SOURCE_SHEET_ID, SOURCE_VARIANT_SHEET, 'sku', variants.map((variant) => ({
-    key: variant.sku,
-    values: {
-      ativo: activeValue,
-    },
-  })))
-
-  await updateCatalogVariantStatuses(
-    Object.fromEntries(variants.map((variant) => [variant.sku, activeValue === 'SIM'])),
+  await updateRowsByLookup(
+    SOURCE_SHEET_ID,
+    SOURCE_VARIANT_SHEET,
+    'sku',
+    variants.map((variant) => ({
+      key: variant.sku,
+      values: {
+        ativo: activeValue,
+      },
+    })),
   )
+
+  await updateCatalogVariantStatuses(Object.fromEntries(variants.map((variant) => [variant.sku, activeValue === 'SIM'])))
 }
 
-export async function createRequest(payload: Partial<ChangeRequest>) {
+async function createRequestInternal(
+  payload: Partial<ChangeRequest>,
+  options: { account?: UserAccount; loteId?: string } = {},
+) {
   if (!OUTPUT_SHEET_ID) {
     throw new Error('GOOGLE_OUTPUT_SHEET_ID nao configurado')
   }
@@ -238,7 +243,7 @@ export async function createRequest(payload: Partial<ChangeRequest>) {
   validateRequestPayload(payload)
 
   const tipoAlteracao = payload.tipoAlteracao as ChangeRequest['tipoAlteracao']
-  const operator = await validateActiveOperator(payload.operadorEmail as string)
+  const account = options.account ?? (await validateActiveAccount(payload.operadorEmail as string))
   const snapshot = await getCatalogSnapshotItem({
     skuBase: payload.skuBase as string,
     skuVariacao: payload.skuVariacao,
@@ -246,7 +251,7 @@ export async function createRequest(payload: Partial<ChangeRequest>) {
   })
 
   const selectedVariants = resolveSelectedVariants(snapshot.product.variacoes, payload, snapshot.variant)
-  const scopedVariants = snapshot.variant ? [snapshot.variant] : selectedVariants
+  const scopedVariants = snapshot.variant ? [snapshot.variant] : selectedVariants.length > 0 ? selectedVariants : snapshot.product.variacoes
   const eligibleVariants = getEligibleVariants(scopedVariants, tipoAlteracao)
   const estoqueGeral =
     tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao'
@@ -275,15 +280,14 @@ export async function createRequest(payload: Partial<ChangeRequest>) {
   const estoquePorVariacao = buildStockByVariant(eligibleVariants, estoqueGeral)
   const request: ChangeRequest = {
     id: createSimpleId('solicitacao'),
+    loteId: options.loteId,
     dataAbertura: new Date().toISOString(),
-    operadorEmail: operator.email,
-    operadorNome: operator.nome,
+    operadorEmail: account.email,
+    operadorNome: account.nome,
     clienteCod: snapshot.product.clienteCod,
     loja: snapshot.product.loja,
     skuBase: snapshot.product.skuBase,
-    skuVariacao:
-      snapshot.variant?.sku ??
-      (variacoesSelecionadas.length === 1 ? variacoesSelecionadas[0] : payload.skuVariacao),
+    skuVariacao: snapshot.variant?.sku ?? (variacoesSelecionadas.length === 1 ? variacoesSelecionadas[0] : payload.skuVariacao),
     titulo: snapshot.product.titulo,
     fotoRef: snapshot.product.fotoRef,
     tipoAlteracao,
@@ -328,6 +332,50 @@ export async function createRequest(payload: Partial<ChangeRequest>) {
   return request
 }
 
+export async function createRequest(payload: Partial<ChangeRequest>) {
+  return createRequestInternal(payload)
+}
+
+export async function createBatchRequests(payload: BulkCreateRequestInput) {
+  if (!Array.isArray(payload.items) || payload.items.length === 0) {
+    throw new Error('Selecione pelo menos um produto para enviar a acao em lote.')
+  }
+
+  const account = await validateActiveAccount(payload.operadorEmail)
+  const loteId = createSimpleId('lote')
+  const uniqueSkuBases = Array.from(new Set(payload.items.map((item) => normalizeSku(item.skuBase)).filter(Boolean)))
+  const created: ChangeRequest[] = []
+  const errors: { skuBase: string; message: string }[] = []
+
+  for (const skuBase of uniqueSkuBases) {
+    try {
+      const request = await createRequestInternal(
+        {
+          operadorEmail: payload.operadorEmail,
+          skuBase,
+          tipoAlteracao: payload.tipoAlteracao,
+          detalhe: payload.detalhe,
+          estoqueGeral: payload.estoqueGeral,
+        },
+        { account, loteId },
+      )
+
+      created.push(request)
+    } catch (error) {
+      errors.push({
+        skuBase,
+        message: error instanceof Error ? error.message : 'Falha ao processar produto em lote',
+      })
+    }
+  }
+
+  return {
+    loteId,
+    created,
+    errors,
+  }
+}
+
 export async function listRequests(filters: ChangeRequestFilters = {}) {
   if (!OUTPUT_SHEET_ID) {
     throw new Error('GOOGLE_OUTPUT_SHEET_ID nao configurado')
@@ -339,6 +387,7 @@ export async function listRequests(filters: ChangeRequestFilters = {}) {
   return rows
     .map<ChangeRequest>((row) => ({
       id: row.id ?? '',
+      loteId: row.loteId ?? '',
       dataAbertura: row.dataAbertura ?? '',
       operadorEmail: row.operadorEmail ?? '',
       operadorNome: row.operadorNome ?? '',

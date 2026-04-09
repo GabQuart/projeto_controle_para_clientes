@@ -55,6 +55,16 @@ const NAV_ITEMS = [
       />
     ),
   },
+  {
+    href: '/contas',
+    label: 'Contas',
+    icon: (
+      <path
+        d="M6 5.5A2.5 2.5 0 018.5 3h7A2.5 2.5 0 0118 5.5v13a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 016 18.5v-13zm2 0v13h7v-13h-7zm1.5 2h4v1.5h-4V7.5zm0 3h4v1.5h-4v-1.5zm0 3h2.75V15H9.5v-1.5z"
+        fill="currentColor"
+      />
+    ),
+  },
 ]
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {

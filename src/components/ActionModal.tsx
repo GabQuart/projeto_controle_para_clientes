@@ -3,7 +3,7 @@
 import type { FormEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
-import type { Operator } from '@/types/operator'
+import type { UserAccount } from '@/types/account'
 import type { ChangeRequestType, RequestedCatalogAction } from '@/types/request'
 
 type SelectedCatalogAction = {
@@ -14,7 +14,7 @@ type SelectedCatalogAction = {
 
 type ActionModalProps = {
   open: boolean
-  operator: Operator | null
+  operator: UserAccount | null
   item: SelectedCatalogAction | null
   onClose: () => void
   onCreated: () => void

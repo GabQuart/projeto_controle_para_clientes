@@ -7,11 +7,11 @@ import { ActionModal } from '@/components/ActionModal'
 import { PaginationControls } from '@/components/PaginationControls'
 import { ProductTable } from '@/components/ProductTable'
 import { SearchBar } from '@/components/SearchBar'
+import type { UserAccount } from '@/types/account'
 import type { CatalogPagination, CatalogProduct, CatalogVariant } from '@/types/catalog'
-import type { Operator } from '@/types/operator'
 import type { RequestedCatalogAction } from '@/types/request'
+import { createClient as createSupabaseClient } from '@/utils/supabase/client'
 
-const STORAGE_KEY = 'catalogo-marketplace.operator'
 const PAGE_SIZE = 10
 
 const EMPTY_PAGINATION: CatalogPagination = {
@@ -59,7 +59,8 @@ function getBlockedActionMessage(item: { product: CatalogProduct; variant?: Cata
 
 export default function CatalogoPage() {
   const router = useRouter()
-  const [operator, setOperator] = useState<Operator | null>(null)
+  const supabase = useMemo(() => createSupabaseClient(), [])
+  const [account, setAccount] = useState<UserAccount | null>(null)
   const [products, setProducts] = useState<CatalogProduct[]>([])
   const [search, setSearch] = useState('')
   const [pagination, setPagination] = useState<CatalogPagination>(EMPTY_PAGINATION)
@@ -69,24 +70,34 @@ export default function CatalogoPage() {
   const [error, setError] = useState('')
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [selectedItem, setSelectedItem] = useState<SelectedCatalogAction | null>(null)
+  const [fornecedorFilter, setFornecedorFilter] = useState('todos')
 
   useEffect(() => {
-    const storedOperator = sessionStorage.getItem(STORAGE_KEY)
+    async function loadSession() {
+      try {
+        const response = await fetch('/api/auth/me')
+        const payload = await response.json()
 
-    if (!storedOperator) {
-      router.replace('/login')
-      return
+        if (!response.ok) {
+          throw new Error(payload.error || 'Falha ao carregar sessao autenticada')
+        }
+
+        if (!payload.account) {
+          router.replace('/login')
+          return
+        }
+
+        setAccount(payload.account)
+      } catch {
+        router.replace('/login')
+      }
     }
 
-    try {
-      setOperator(JSON.parse(storedOperator) as Operator)
-    } catch {
-      router.replace('/login')
-    }
+    loadSession()
   }, [router])
 
   useEffect(() => {
-    if (!operator) {
+    if (!account) {
       return
     }
 
@@ -97,11 +108,16 @@ export default function CatalogoPage() {
 
       try {
         const params = new URLSearchParams()
-        params.set('clienteCod', operator.clienteCod)
+        params.set('email', account.email)
         params.set('page', String(currentPage))
         params.set('pageSize', String(PAGE_SIZE))
+
         if (search.trim()) {
           params.set('termo', search.trim())
+        }
+
+        if (fornecedorFilter !== 'todos') {
+          params.set('fornecedor', fornecedorFilter)
         }
 
         const response = await fetch(`/api/catalogo?${params.toString()}`, { signal: controller.signal })
@@ -132,12 +148,20 @@ export default function CatalogoPage() {
       controller.abort()
       window.clearTimeout(timeout)
     }
-  }, [currentPage, operator, refreshNonce, search])
+  }, [account, currentPage, fornecedorFilter, refreshNonce, search])
 
   const summary = useMemo(() => {
     const variants = products.reduce((total, product) => total + product.variacoes.length, 0)
     return { products: products.length, variants, totalProducts: pagination.total }
   }, [pagination.total, products])
+
+  const fornecedorOptions = useMemo(() => {
+    if (!account || account.access.scopeType !== 'fornecedor_prefix') {
+      return []
+    }
+
+    return account.access.fornecedorPrefixes
+  }, [account])
 
   function toggleExpanded(skuBase: string) {
     setExpandedIds((current) => (current.includes(skuBase) ? current.filter((item) => item !== skuBase) : [...current, skuBase]))
@@ -173,8 +197,8 @@ export default function CatalogoPage() {
     setSelectedItem(input)
   }
 
-  function handleLogout() {
-    sessionStorage.removeItem(STORAGE_KEY)
+  async function handleLogout() {
+    await supabase.auth.signOut()
     router.push('/login')
   }
 
@@ -185,14 +209,16 @@ export default function CatalogoPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Painel operacional</p>
             <h1 className="mt-3 font-display text-2xl font-semibold text-ink sm:text-3xl lg:text-4xl">
-              Produtos e variacoes com leitura rapida e acao imediata
+              Catalogo autenticado por conta com acesso recortado pela operacao
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-steel sm:text-base">
-              Operador atual: <span className="font-semibold text-ink">{operator?.nome ?? 'Carregando...'}</span>
+              Sessao atual: <span className="font-semibold text-ink">{account?.nome ?? 'Carregando...'}</span>
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-steel sm:text-sm">
-              <span className="brand-chip rounded-full px-3 py-1">Loja: {operator?.loja ?? '-'}</span>
-              <span className="brand-chip rounded-full px-3 py-1">Cliente: {operator?.clienteCod ?? '-'}</span>
+              <span className="brand-chip rounded-full px-3 py-1">Perfil: {account?.role ?? '-'}</span>
+              <span className="brand-chip rounded-full px-3 py-1">
+                Escopo: {account?.role === 'admin' ? 'Todos os produtos' : account?.access.lojas.join(', ') || '-'}
+              </span>
             </div>
           </div>
           <div className="grid gap-3 sm:flex sm:flex-wrap">
@@ -202,18 +228,44 @@ export default function CatalogoPage() {
             >
               Ver historico
             </Link>
+            <Link
+              href="/contas"
+              className="brand-chip rounded-full px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
+            >
+              Gerenciar contas
+            </Link>
             <button
               type="button"
               onClick={handleLogout}
               className="rounded-full bg-cobalt px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#418dff]"
             >
-              Trocar operador
+              Sair
             </button>
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className={`mt-8 grid gap-4 ${fornecedorOptions.length > 0 ? 'lg:grid-cols-[2fr_1fr_1fr]' : 'lg:grid-cols-[2fr_1fr]'}`}>
           <SearchBar value={search} onChange={handleSearchChange} />
+          {fornecedorOptions.length > 0 ? (
+            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
+              Fornecedor
+              <select
+                value={fornecedorFilter}
+                onChange={(event) => {
+                  setFornecedorFilter(event.target.value)
+                  setCurrentPage(1)
+                }}
+                className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+              >
+                <option value="todos" className="bg-slate text-ink">Todos os fornecedores</option>
+                {fornecedorOptions.map((option) => (
+                  <option key={option} value={option} className="bg-slate text-ink">
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           <div className="brand-chip rounded-3xl p-4 text-sm text-steel">
             <p className="font-semibold uppercase tracking-[0.16em] text-ink">Resumo atual</p>
             <p className="mt-2">
@@ -227,7 +279,7 @@ export default function CatalogoPage() {
       <section className="mt-6">
         {error ? <div className="mb-4 rounded-2xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-clay">{error}</div> : null}
         {loading ? (
-          <div className="panel rounded-3xl p-6 text-sm text-steel">Carregando catalogo a partir do Google Sheets...</div>
+          <div className="panel rounded-3xl p-6 text-sm text-steel">Carregando catalogo autenticado...</div>
         ) : (
           <ProductTable products={products} expandedIds={expandedIds} onToggle={toggleExpanded} onAction={handleOpenAction} />
         )}
@@ -241,7 +293,7 @@ export default function CatalogoPage() {
 
       <ActionModal
         open={Boolean(selectedItem)}
-        operator={operator}
+        operator={account}
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
         onCreated={() => {

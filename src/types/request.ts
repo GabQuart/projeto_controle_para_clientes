@@ -18,6 +18,7 @@ export type RequestedVariantStock = {
 
 export type ChangeRequest = {
   id: string
+  loteId?: string
   dataAbertura: string
   operadorEmail: string
   operadorNome: string
@@ -35,6 +36,18 @@ export type ChangeRequest = {
   variacoesSelecionadas?: string[]
   estoqueGeral?: number
   estoquePorVariacao?: RequestedVariantStock[]
+}
+
+export type BulkRequestItemInput = {
+  skuBase: string
+}
+
+export type BulkCreateRequestInput = {
+  operadorEmail: string
+  tipoAlteracao: ChangeRequestType
+  detalhe: string
+  estoqueGeral?: number
+  items: BulkRequestItemInput[]
 }
 
 export type ChangeRequestFilters = {
