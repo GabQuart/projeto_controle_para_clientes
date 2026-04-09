@@ -108,7 +108,6 @@ export default function CatalogoPage() {
 
       try {
         const params = new URLSearchParams()
-        params.set('email', account.email)
         params.set('page', String(currentPage))
         params.set('pageSize', String(PAGE_SIZE))
 

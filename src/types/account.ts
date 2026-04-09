@@ -21,10 +21,13 @@ export type UserAccount = {
 }
 
 export type AccountDirectoryEntry = {
+  id?: string
   loja: string
   clienteCod: string
   fornecedorPrefix: string
   label: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export type AccountCatalogScope = {
@@ -42,4 +45,23 @@ export type CreateAccountInput = {
   clienteCods?: string[]
   fornecedorPrefixes?: string[]
   ativo?: boolean
+}
+
+export type AccountAccessScopeRow = {
+  id?: string
+  loja: string
+  cliente_cod: string | null
+  fornecedor_prefix: string | null
+}
+
+export type AccountRecordRow = {
+  id: string
+  email: string
+  nome: string
+  role: AccountRole
+  ativo: boolean
+  scope_type: AccountScopeType
+  created_at: string
+  updated_at: string
+  account_access_scopes?: AccountAccessScopeRow[] | null
 }

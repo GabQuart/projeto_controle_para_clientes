@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getAccountByEmail } from '@/lib/services/account.service'
+import { getAuthenticatedAccount } from '@/lib/services/account.service'
 import { createClient } from '@/utils/supabase/server'
 
 export async function GET() {
@@ -18,7 +18,7 @@ export async function GET() {
       return NextResponse.json({ user: null, account: null })
     }
 
-    const account = await getAccountByEmail(user.email)
+    const account = await getAuthenticatedAccount()
 
     return NextResponse.json({
       user: {

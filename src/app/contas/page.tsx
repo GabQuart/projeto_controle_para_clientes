@@ -113,7 +113,6 @@ export default function ContasPage() {
         },
         body: JSON.stringify({
           ...form,
-          createdByEmail: account.email,
         }),
       })
 

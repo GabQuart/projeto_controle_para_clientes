@@ -4,14 +4,12 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import type { UserAccount } from '@/types/account'
 import { createClient as createSupabaseClient } from '@/utils/supabase/client'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [accounts, setAccounts] = useState<UserAccount[]>([])
   const [email, setEmail] = useState('')
-  const [loadingAccounts, setLoadingAccounts] = useState(true)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const supabase = useMemo(() => createSupabaseClient(), [])
@@ -19,23 +17,12 @@ export default function LoginPage() {
   useEffect(() => {
     async function bootstrap() {
       try {
-        const [accountsResponse, sessionResponse] = await Promise.all([
-          fetch('/api/contas'),
-          fetch('/api/auth/me'),
-        ])
-
-        const accountsPayload = await accountsResponse.json()
+        const sessionResponse = await fetch('/api/auth/me')
         const sessionPayload = await sessionResponse.json()
-
-        if (!accountsResponse.ok) {
-          throw new Error(accountsPayload.error || 'Falha ao carregar contas')
-        }
 
         if (!sessionResponse.ok) {
           throw new Error(sessionPayload.error || 'Falha ao carregar sessao atual')
         }
-
-        setAccounts(accountsPayload.data ?? [])
 
         if (sessionPayload.account) {
           router.replace('/catalogo')
@@ -55,7 +42,7 @@ export default function LoginPage() {
           message: error instanceof Error ? error.message : 'Falha ao preparar o login',
         })
       } finally {
-        setLoadingAccounts(false)
+        setCheckingSession(false)
       }
     }
 
@@ -78,13 +65,6 @@ export default function LoginPage() {
     setFeedback(null)
 
     try {
-      const accountLookupResponse = await fetch(`/api/contas?email=${encodeURIComponent(email)}`)
-      const accountLookupPayload = await accountLookupResponse.json()
-
-      if (!accountLookupResponse.ok || !accountLookupPayload.data?.ativo) {
-        throw new Error('Nao encontramos uma conta ativa com esse e-mail. Fale com a M3rcadeo para liberar seu acesso.')
-      }
-
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
@@ -142,8 +122,8 @@ export default function LoginPage() {
             <p className="mt-2 text-sm text-steel">Mesmo autenticado, o usuario so entra se o e-mail estiver cadastrado nas contas da operacao.</p>
           </div>
           <div className="brand-chip rounded-3xl p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Escopo futuro</p>
-            <p className="mt-2 text-sm text-steel">A base fica pronta para ligar o recorte por admin, cliente e fornecedor da Presente Net.</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Cadastro governado</p>
+            <p className="mt-2 text-sm text-steel">As contas sao criadas por admin e relacionam lojas, clientes e fornecedores direto no banco.</p>
           </div>
         </div>
       </section>
@@ -152,7 +132,7 @@ export default function LoginPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Login com e-mail</p>
         <h2 className="mt-4 font-display text-2xl font-semibold text-ink sm:text-3xl">Receba um link magico do Supabase</h2>
         <p className="mt-3 text-sm text-steel">
-          Use o mesmo e-mail que estiver cadastrado na conta da sua operacao. O acesso so abre depois da validacao desse cadastro.
+          Use o mesmo e-mail cadastrado pela M3rcadeo. O Supabase autentica e o sistema confere no banco se esse acesso existe.
         </p>
 
         <div className="mt-8 space-y-4">
@@ -180,27 +160,11 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={handleMagicLink}
-            disabled={submitting || loadingAccounts || !email}
+            disabled={submitting || checkingSession || !email}
             className="w-full rounded-full bg-cobalt px-5 py-3 text-sm font-bold uppercase tracking-[0.18em] text-white transition hover:bg-[#418dff] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? 'Enviando link...' : 'Receber link de acesso'}
           </button>
-        </div>
-
-        <div className="mt-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">E-mails cadastrados nesta base</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {accounts.map((account) => (
-              <button
-                key={account.id}
-                type="button"
-                onClick={() => setEmail(account.email)}
-                className="brand-chip rounded-full px-3 py-2 text-left text-xs text-ink transition hover:border-amber/40 hover:text-amber"
-              >
-                {account.nome} | {account.role}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div className="mt-8 grid gap-3 text-sm sm:flex sm:flex-wrap">

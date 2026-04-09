@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { filterCatalogProductsForAccount, validateActiveAccount } from '@/lib/services/account.service'
+import { filterCatalogProductsForAccount, getAuthenticatedAccount } from '@/lib/services/account.service'
 import { enrichCatalogProductImages, getCatalogCacheMetadata, listCatalog } from '@/lib/services/catalog.service'
 
 const DEFAULT_PAGE_SIZE = 10
@@ -22,7 +22,6 @@ function parseBoolean(value: string | null) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const email = searchParams.get('email') ?? undefined
     const clienteCod = searchParams.get('clienteCod') ?? undefined
     const loja = searchParams.get('loja') ?? undefined
     const fornecedor = searchParams.get('fornecedor') ?? undefined
@@ -31,7 +30,12 @@ export async function GET(request: Request) {
     const page = parsePositiveInt(searchParams.get('page'), 1)
     const pageSize = Math.min(parsePositiveInt(searchParams.get('pageSize'), DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE)
 
-    const account = email ? await validateActiveAccount(email) : null
+    const account = await getAuthenticatedAccount()
+
+    if (!account) {
+      return NextResponse.json({ error: 'Sessao autenticada nao encontrada.' }, { status: 401 })
+    }
+
     const [data, cache] = await Promise.all([
       listCatalog({ termo, forceRefresh }),
       getCatalogCacheMetadata({ forceRefresh }),

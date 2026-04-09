@@ -1,25 +1,24 @@
 import { NextResponse } from 'next/server'
-import { createAccount, getAccountByEmail, listAccountDirectory, listAccounts, validateActiveAccount } from '@/lib/services/account.service'
+import { createAccount, getAuthenticatedAccount, listAccountDirectory, listAccounts, requireAdminAccount } from '@/lib/services/account.service'
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const email = searchParams.get('email')
     const includeDirectory = searchParams.get('includeDirectory') === '1'
+    const refreshDirectory = searchParams.get('refreshDirectory') === '1'
+    const actor = await getAuthenticatedAccount()
 
-    if (email) {
-      const data = await getAccountByEmail(email)
+    if (!actor) {
+      return NextResponse.json({ error: 'Sessao autenticada nao encontrada.' }, { status: 401 })
+    }
 
-      if (!data) {
-        return NextResponse.json({ error: 'Conta nao encontrada' }, { status: 404 })
-      }
-
-      return NextResponse.json({ data })
+    if (actor.role !== 'admin') {
+      return NextResponse.json({ data: actor, directory: [] })
     }
 
     const [accounts, directory] = await Promise.all([
       listAccounts(),
-      includeDirectory ? listAccountDirectory() : Promise.resolve(undefined),
+      includeDirectory ? listAccountDirectory({ refresh: refreshDirectory }) : Promise.resolve(undefined),
     ])
 
     return NextResponse.json({
@@ -35,17 +34,13 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const payload = await request.json()
-    const createdByEmail = String(payload.createdByEmail ?? '')
-    const actor = await validateActiveAccount(createdByEmail)
-
-    if (actor.role !== 'admin') {
-      return NextResponse.json({ error: 'Apenas contas admin podem criar novos acessos.' }, { status: 403 })
-    }
+    await requireAdminAccount()
 
     const data = await createAccount(payload)
     return NextResponse.json({ data }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Falha ao criar conta'
-    return NextResponse.json({ error: message }, { status: 400 })
+    const status = message.includes('administradores') || message.includes('Sessao autenticada') ? 403 : 400
+    return NextResponse.json({ error: message }, { status })
   }
 }

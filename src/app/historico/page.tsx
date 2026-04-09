@@ -55,7 +55,6 @@ export default function HistoricoPage() {
 
       try {
         const params = new URLSearchParams()
-        params.set('email', currentAccount.email)
 
         if (status !== 'todos') {
           params.set('status', status)
