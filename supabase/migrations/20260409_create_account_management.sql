@@ -77,6 +77,28 @@ as $$
   );
 $$;
 
+create or replace function public.account_status_by_email(target_email text)
+returns table (
+  email text,
+  nome text,
+  role text,
+  ativo boolean
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    app_accounts.email,
+    app_accounts.nome,
+    app_accounts.role,
+    app_accounts.ativo
+  from public.app_accounts
+  where lower(app_accounts.email) = lower(target_email)
+  limit 1;
+$$;
+
 alter table public.app_accounts enable row level security;
 alter table public.account_access_scopes enable row level security;
 alter table public.catalog_directory_entries enable row level security;

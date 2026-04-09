@@ -156,6 +156,36 @@ export async function requireAdminAccount() {
   return account
 }
 
+export async function getPublicAccountStatusByEmail(email: string) {
+  const normalizedEmail = normalizeEmail(email)
+
+  if (!normalizedEmail) {
+    return null
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('account_status_by_email', {
+    target_email: normalizedEmail,
+  })
+
+  if (error) {
+    throw new Error(`Falha ao verificar conta cadastrada: ${error.message}`)
+  }
+
+  const row = Array.isArray(data) ? data[0] : null
+
+  if (!row) {
+    return null
+  }
+
+  return {
+    email: row.email as string,
+    nome: row.nome as string,
+    role: row.role as UserAccount['role'],
+    ativo: Boolean(row.ativo),
+  }
+}
+
 export async function listAccounts() {
   await requireAdminAccount()
   const rows = await fetchAccountRows()
