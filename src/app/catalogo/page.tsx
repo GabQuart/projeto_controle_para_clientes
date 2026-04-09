@@ -180,24 +180,33 @@ export default function CatalogoPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <section className="panel rounded-[28px] p-5 sm:rounded-[32px] sm:p-8">
+      <section className="panel rounded-[32px] p-5 sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-amber">Catalogo operacional</p>
-            <h1 className="mt-3 text-2xl font-black text-ink sm:text-3xl lg:text-4xl">Produtos e variacoes para acao rapida</h1>
-            <p className="mt-3 max-w-2xl text-sm text-ink/75 sm:text-base">
-              Operador atual: <span className="font-bold">{operator?.nome ?? 'Carregando...'}</span>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Painel operacional</p>
+            <h1 className="mt-3 font-display text-2xl font-semibold text-ink sm:text-3xl lg:text-4xl">
+              Produtos e variacoes com leitura rapida e acao imediata
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm text-steel sm:text-base">
+              Operador atual: <span className="font-semibold text-ink">{operator?.nome ?? 'Carregando...'}</span>
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-steel sm:text-sm">
-              <span className="rounded-full bg-ink/5 px-3 py-1">Loja: {operator?.loja ?? '-'}</span>
-              <span className="rounded-full bg-ink/5 px-3 py-1">Cliente: {operator?.clienteCod ?? '-'}</span>
+              <span className="brand-chip rounded-full px-3 py-1">Loja: {operator?.loja ?? '-'}</span>
+              <span className="brand-chip rounded-full px-3 py-1">Cliente: {operator?.clienteCod ?? '-'}</span>
             </div>
           </div>
           <div className="grid gap-3 sm:flex sm:flex-wrap">
-            <Link href="/historico" className="rounded-full border border-black/10 px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber hover:text-amber">
+            <Link
+              href="/historico"
+              className="brand-chip rounded-full px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
+            >
               Ver historico
             </Link>
-            <button type="button" onClick={handleLogout} className="rounded-full bg-ink px-4 py-3 text-sm font-semibold text-white transition hover:bg-ink/90">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-full bg-cobalt px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#418dff]"
+            >
               Trocar operador
             </button>
           </div>
@@ -205,10 +214,10 @@ export default function CatalogoPage() {
 
         <div className="mt-8 grid gap-4 lg:grid-cols-[2fr_1fr]">
           <SearchBar value={search} onChange={handleSearchChange} />
-          <div className="rounded-3xl bg-mist p-4 text-sm text-ink/80">
-            <p className="font-semibold">Resumo atual</p>
+          <div className="brand-chip rounded-3xl p-4 text-sm text-steel">
+            <p className="font-semibold uppercase tracking-[0.16em] text-ink">Resumo atual</p>
             <p className="mt-2">
-              Exibindo {summary.products} de {summary.totalProducts} produtos
+              Exibindo <span className="text-ink">{summary.products}</span> de <span className="text-ink">{summary.totalProducts}</span> produtos
             </p>
             <p>{summary.variants} variacoes nesta pagina</p>
           </div>
@@ -216,16 +225,11 @@ export default function CatalogoPage() {
       </section>
 
       <section className="mt-6">
-        {error ? <div className="mb-4 rounded-2xl bg-clay/10 px-4 py-3 text-sm text-clay">{error}</div> : null}
+        {error ? <div className="mb-4 rounded-2xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-clay">{error}</div> : null}
         {loading ? (
           <div className="panel rounded-3xl p-6 text-sm text-steel">Carregando catalogo a partir do Google Sheets...</div>
         ) : (
-          <ProductTable
-            products={products}
-            expandedIds={expandedIds}
-            onToggle={toggleExpanded}
-            onAction={handleOpenAction}
-          />
+          <ProductTable products={products} expandedIds={expandedIds} onToggle={toggleExpanded} onAction={handleOpenAction} />
         )}
 
         {!loading ? (

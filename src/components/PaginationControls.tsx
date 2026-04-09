@@ -30,7 +30,7 @@ export function PaginationControls({ pagination, onPageChange }: PaginationContr
   let previousPage: number | null = null
 
   return (
-    <nav aria-label="Paginacao do catalogo" className="flex flex-col gap-3 rounded-3xl bg-white/80 p-4 shadow-soft ring-1 ring-black/5 sm:flex-row sm:items-center sm:justify-between">
+    <nav aria-label="Paginacao do catalogo" className="panel flex flex-col gap-3 rounded-3xl p-4 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm text-steel">
         Pagina <span className="font-semibold text-ink">{pagination.page}</span> de{' '}
         <span className="font-semibold text-ink">{pagination.totalPages}</span>
@@ -41,7 +41,7 @@ export function PaginationControls({ pagination, onPageChange }: PaginationContr
           type="button"
           onClick={() => onPageChange(pagination.page - 1)}
           disabled={!pagination.hasPreviousPage}
-          className="rounded-full border border-black/10 px-3 py-2 text-sm font-semibold text-ink transition hover:border-amber hover:text-amber disabled:cursor-not-allowed disabled:opacity-40"
+          className="brand-chip rounded-full px-3 py-2 text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber disabled:cursor-not-allowed disabled:opacity-40"
         >
           Anterior
         </button>
@@ -59,8 +59,8 @@ export function PaginationControls({ pagination, onPageChange }: PaginationContr
                 aria-current={pagination.page === page ? 'page' : undefined}
                 className={`min-w-10 rounded-full px-3 py-2 text-sm font-semibold transition ${
                   pagination.page === page
-                    ? 'bg-ink text-white'
-                    : 'border border-black/10 text-ink hover:border-amber hover:text-amber'
+                    ? 'bg-cobalt text-white shadow-soft'
+                    : 'brand-chip text-ink hover:border-amber/40 hover:text-amber'
                 }`}
               >
                 {page}
@@ -73,7 +73,7 @@ export function PaginationControls({ pagination, onPageChange }: PaginationContr
           type="button"
           onClick={() => onPageChange(pagination.page + 1)}
           disabled={!pagination.hasNextPage}
-          className="rounded-full border border-black/10 px-3 py-2 text-sm font-semibold text-ink transition hover:border-amber hover:text-amber disabled:cursor-not-allowed disabled:opacity-40"
+          className="brand-chip rounded-full px-3 py-2 text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber disabled:cursor-not-allowed disabled:opacity-40"
         >
           Proxima
         </button>
