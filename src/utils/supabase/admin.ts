@@ -1,14 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+import { getSupabasePublicEnv, getSupabaseServiceRoleKey } from '@/lib/env'
 
 export function createAdminClient() {
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('SUPABASE_SERVICE_ROLE_KEY nao configurada para criar usuarios de autenticacao.')
-  }
+  const { url } = getSupabasePublicEnv()
+  const serviceRoleKey = getSupabaseServiceRoleKey()
 
-  return createClient(supabaseUrl, serviceRoleKey, {
+  return createClient(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

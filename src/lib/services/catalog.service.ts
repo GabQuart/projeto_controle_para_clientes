@@ -1,4 +1,4 @@
-import { readMultipleSheetTabs } from '@/lib/google/sheets'
+﻿import { readMultipleSheetTabs } from '@/lib/google/sheets'
 import {
   buildGoogleDriveFolderLink,
   extractGoogleDriveId,
@@ -65,13 +65,16 @@ function buildProductRow(row: Record<string, string | undefined>, storeByClient:
 
 function buildVariantRow(row: Record<string, string | undefined>): CatalogVariant {
   const sku = normalizeSku(row.sku)
-  const variacao = compactText(row['Variação'])
+  const clienteCod = compactText(row.Cliente)
+  const numProd = compactText(row.num_prod)
+  const variacao = compactText(row['Variação'] ?? row['VariaÃ§Ã£o'])
   const tamanho = compactText(row.Tamanho)
+  const derivedSkuBase = normalizeSku(clienteCod && numProd ? `${clienteCod}.${numProd}` : '')
 
   return {
     id: sku,
     sku,
-    skuBase: extractSkuBase(sku || `${row.Cliente}.${row.num_prod}`),
+    skuBase: derivedSkuBase || extractSkuBase(sku || `${row.Cliente}.${row.num_prod}`),
     variacao,
     cor: variacao || undefined,
     tamanho: tamanho || undefined,
@@ -278,3 +281,4 @@ export async function updateCatalogVariantStatuses(statusBySku: Record<string, b
     }),
   )
 }
+

@@ -10,7 +10,6 @@ import { SearchBar } from '@/components/SearchBar'
 import type { UserAccount } from '@/types/account'
 import type { CatalogPagination, CatalogProduct, CatalogVariant } from '@/types/catalog'
 import type { RequestedCatalogAction } from '@/types/request'
-import { createClient as createSupabaseClient } from '@/utils/supabase/client'
 
 const PAGE_SIZE = 10
 
@@ -59,7 +58,6 @@ function getBlockedActionMessage(item: { product: CatalogProduct; variant?: Cata
 
 export default function CatalogoPage() {
   const router = useRouter()
-  const supabase = useMemo(() => createSupabaseClient(), [])
   const [account, setAccount] = useState<UserAccount | null>(null)
   const [products, setProducts] = useState<CatalogProduct[]>([])
   const [search, setSearch] = useState('')
@@ -75,7 +73,7 @@ export default function CatalogoPage() {
   useEffect(() => {
     async function loadSession() {
       try {
-        const response = await fetch('/api/auth/me')
+        const response = await fetch('/api/auth/me', { cache: 'no-store' })
         const payload = await response.json()
 
         if (!response.ok) {
@@ -119,10 +117,18 @@ export default function CatalogoPage() {
           params.set('fornecedor', fornecedorFilter)
         }
 
-        const response = await fetch(`/api/catalogo?${params.toString()}`, { signal: controller.signal })
+        const response = await fetch(`/api/catalogo?${params.toString()}`, {
+          signal: controller.signal,
+          cache: 'no-store',
+        })
         const payload = await response.json()
 
         if (!response.ok) {
+          if (response.status === 401) {
+            router.replace('/login')
+            return
+          }
+
           throw new Error(payload.error || 'Falha ao carregar catalogo')
         }
 
@@ -197,8 +203,11 @@ export default function CatalogoPage() {
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut()
-    router.push('/login')
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+    })
+    router.replace('/login')
+    router.refresh()
   }
 
   return (

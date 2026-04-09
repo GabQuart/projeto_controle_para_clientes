@@ -3,14 +3,12 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
-import { createClient as createSupabaseClient } from '@/utils/supabase/client'
+import { useEffect, useState } from 'react'
 
 type AuthMode = 'login' | 'primeiro_acesso'
 
 export default function LoginPage() {
   const router = useRouter()
-  const supabase = useMemo(() => createSupabaseClient(), [])
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -19,10 +17,19 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
+  function getNextPath() {
+    if (typeof window === 'undefined') {
+      return '/catalogo'
+    }
+
+    const target = new URLSearchParams(window.location.search).get('next')
+    return target && target.startsWith('/') ? target : '/catalogo'
+  }
+
   useEffect(() => {
     async function bootstrap() {
       try {
-        const sessionResponse = await fetch('/api/auth/me')
+        const sessionResponse = await fetch('/api/auth/me', { cache: 'no-store' })
         const sessionPayload = await sessionResponse.json()
 
         if (!sessionResponse.ok) {
@@ -30,11 +37,14 @@ export default function LoginPage() {
         }
 
         if (sessionPayload.account) {
-          router.replace('/catalogo')
+          router.replace(getNextPath())
           return
         }
 
         if (sessionPayload.user?.email) {
+          await fetch('/api/auth/logout', {
+            method: 'POST',
+          })
           setEmail(sessionPayload.user.email)
           setFeedback({
             type: 'error',
@@ -65,54 +75,29 @@ export default function LoginPage() {
     }
   }, [])
 
-  async function checkRegisteredAccount(targetEmail: string) {
-    const response = await fetch(`/api/auth/account-status?email=${encodeURIComponent(targetEmail)}`)
-    const payload = await response.json()
-
-    if (!response.ok) {
-      throw new Error(payload.error || 'Falha ao validar a conta cadastrada')
-    }
-
-    if (!payload.data?.ativo) {
-      throw new Error('Nao encontramos uma conta ativa com esse e-mail. Fale com a M3rcadeo para liberar seu acesso.')
-    }
-
-    return payload.data as { email: string; nome: string; role: 'admin' | 'cliente'; ativo: boolean }
-  }
-
-  async function syncAuthorizedSession() {
-    const sessionResponse = await fetch('/api/auth/me')
-    const sessionPayload = await sessionResponse.json()
-
-    if (!sessionResponse.ok) {
-      throw new Error(sessionPayload.error || 'Falha ao validar sessao atual')
-    }
-
-    if (!sessionPayload.account) {
-      await supabase.auth.signOut()
-      throw new Error('Sua autenticacao foi criada, mas o e-mail ainda nao possui conta interna liberada.')
-    }
-
-    router.push('/catalogo')
-  }
-
   async function handleLogin() {
     setSubmitting(true)
     setFeedback(null)
 
     try {
-      await checkRegisteredAccount(email)
-
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
       })
+      const payload = await response.json()
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        throw new Error(payload.error || 'Falha ao entrar no sistema')
       }
 
-      await syncAuthorizedSession()
+      router.replace(getNextPath())
+      router.refresh()
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -136,29 +121,25 @@ export default function LoginPage() {
         throw new Error('A confirmacao da senha precisa ser igual a senha.')
       }
 
-      await checkRegisteredAccount(email)
-
-      const { error, data } = await supabase.auth.signUp({
-        email,
-        password,
+      const response = await fetch('/api/auth/primeiro-acesso', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          confirmPassword,
+        }),
       })
+      const payload = await response.json()
 
-      if (error) {
-        throw error
+      if (!response.ok) {
+        throw new Error(payload.error || 'Falha ao ativar o primeiro acesso')
       }
 
-      if (!data.session) {
-        setFeedback({
-          type: 'success',
-          message: 'Conta de autenticacao criada. Se o Supabase pedir confirmacao por e-mail, confirme e depois faca login normalmente.',
-        })
-        setMode('login')
-        setPassword('')
-        setConfirmPassword('')
-        return
-      }
-
-      await syncAuthorizedSession()
+      router.replace(getNextPath())
+      router.refresh()
     } catch (error) {
       setFeedback({
         type: 'error',

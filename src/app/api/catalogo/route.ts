@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { filterCatalogProductsForAccount, getAuthenticatedAccount } from '@/lib/services/account.service'
 import { enrichCatalogProductImages, getCatalogCacheMetadata, listCatalog } from '@/lib/services/catalog.service'
 
+export const dynamic = 'force-dynamic'
+
 const DEFAULT_PAGE_SIZE = 10
 const MAX_PAGE_SIZE = 50
 
@@ -33,7 +35,7 @@ export async function GET(request: Request) {
     const account = await getAuthenticatedAccount()
 
     if (!account) {
-      return NextResponse.json({ error: 'Sessao autenticada nao encontrada.' }, { status: 401 })
+      return NextResponse.json({ error: 'Sessao autenticada nao encontrada.' }, { status: 401, headers: { 'Cache-Control': 'no-store' } })
     }
 
     const [data, cache] = await Promise.all([
@@ -64,20 +66,27 @@ export async function GET(request: Request) {
     const paginatedData = filteredData.slice(startIndex, startIndex + pageSize)
     const enrichedData = await enrichCatalogProductImages(paginatedData)
 
-    return NextResponse.json({
-      data: enrichedData,
-      pagination: {
-        page: currentPage,
-        pageSize,
-        total,
-        totalPages,
-        hasPreviousPage: currentPage > 1,
-        hasNextPage: currentPage < totalPages,
+    return NextResponse.json(
+      {
+        data: enrichedData,
+        pagination: {
+          page: currentPage,
+          pageSize,
+          total,
+          totalPages,
+          hasPreviousPage: currentPage > 1,
+          hasNextPage: currentPage < totalPages,
+        },
+        cache,
       },
-      cache,
-    })
+      {
+        headers: {
+          'Cache-Control': 'no-store',
+        },
+      },
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Falha ao carregar catalogo'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json({ error: message }, { status: 500, headers: { 'Cache-Control': 'no-store' } })
   }
 }

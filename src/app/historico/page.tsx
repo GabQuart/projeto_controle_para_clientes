@@ -21,7 +21,7 @@ export default function HistoricoPage() {
   useEffect(() => {
     async function loadSession() {
       try {
-        const response = await fetch('/api/auth/me')
+        const response = await fetch('/api/auth/me', { cache: 'no-store' })
         const payload = await response.json()
 
         if (!response.ok) {
@@ -47,8 +47,6 @@ export default function HistoricoPage() {
       return
     }
 
-    const currentAccount = account
-
     async function loadHistory() {
       setLoading(true)
       setError('')
@@ -60,10 +58,15 @@ export default function HistoricoPage() {
           params.set('status', status)
         }
 
-        const response = await fetch(`/api/solicitacoes?${params.toString()}`)
+        const response = await fetch(`/api/solicitacoes?${params.toString()}`, { cache: 'no-store' })
         const payload = await response.json()
 
         if (!response.ok) {
+          if (response.status === 401) {
+            router.replace('/login')
+            return
+          }
+
           throw new Error(payload.error || 'Falha ao carregar historico')
         }
 

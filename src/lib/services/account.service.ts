@@ -321,6 +321,7 @@ export async function createAccount(input: CreateAccountInput) {
   }
 
   let provisionedAuthUserId = ''
+  let createdAccountId = ''
 
   if (input.provisionAuthUser) {
     const temporaryPassword = compactText(input.temporaryPassword)
@@ -341,6 +342,10 @@ export async function createAccount(input: CreateAccountInput) {
     })
 
     if (authError) {
+      if (compactText(authError.message).toLowerCase().includes('already been registered')) {
+        throw new Error('Esse e-mail ja possui login no Supabase Auth. Use outro e-mail ou desative a criacao automatica do login.')
+      }
+
       throw new Error(`Falha ao criar o login no Supabase Auth: ${authError.message}`)
     }
 
@@ -368,12 +373,17 @@ export async function createAccount(input: CreateAccountInput) {
     throw new Error(`Falha ao criar a conta no Supabase: ${error?.message ?? 'registro nao retornado'}`)
   }
 
+  createdAccountId = data.id
   const accessRows = buildAccessRows(data.id, input)
 
   if (accessRows.length > 0) {
     const { error: scopeError } = await supabase.from(ACCOUNT_SCOPES_TABLE).insert(accessRows)
 
     if (scopeError) {
+      if (createdAccountId) {
+        await supabase.from(ACCOUNTS_TABLE).delete().eq('id', createdAccountId)
+      }
+
       if (provisionedAuthUserId) {
         const adminSupabase = createAdminClient()
         await adminSupabase.auth.admin.deleteUser(provisionedAuthUserId)

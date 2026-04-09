@@ -41,7 +41,9 @@ export default function ContasPage() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   async function loadAccountsBundle(refreshDirectory = false) {
-    const response = await fetch(`/api/contas?includeDirectory=1${refreshDirectory ? '&refreshDirectory=1' : ''}`)
+    const response = await fetch(`/api/contas?includeDirectory=1${refreshDirectory ? '&refreshDirectory=1' : ''}`, {
+      cache: 'no-store',
+    })
     const payload = await response.json()
 
     if (!response.ok) {
@@ -54,11 +56,8 @@ export default function ContasPage() {
   useEffect(() => {
     async function bootstrap() {
       try {
-        const sessionResponse = await fetch('/api/auth/me')
-        const accountsResponse = await loadAccountsBundle()
-
+        const sessionResponse = await fetch('/api/auth/me', { cache: 'no-store' })
         const sessionPayload = await sessionResponse.json()
-        let accountsPayload = accountsResponse
 
         if (!sessionResponse.ok) {
           throw new Error(sessionPayload.error || 'Falha ao carregar sessao')
@@ -73,6 +72,8 @@ export default function ContasPage() {
           router.replace('/catalogo')
           return
         }
+
+        let accountsPayload = await loadAccountsBundle()
 
         if ((accountsPayload.directory ?? []).length === 0) {
           setSyncingDirectory(true)
@@ -112,6 +113,28 @@ export default function ContasPage() {
       ...current,
       [field]: current[field].includes(value) ? current[field].filter((item) => item !== value) : [...current[field], value],
     }))
+  }
+
+  async function handleDirectorySync() {
+    setSyncingDirectory(true)
+    setFeedback(null)
+
+    try {
+      const payload = await loadAccountsBundle(true)
+      setAccounts(payload.data ?? [])
+      setDirectory(payload.directory ?? [])
+      setFeedback({
+        type: 'success',
+        message: 'Diretorio sincronizado com a base atual do catalogo.',
+      })
+    } catch (error) {
+      setFeedback({
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Falha ao sincronizar o diretorio',
+      })
+    } finally {
+      setSyncingDirectory(false)
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -377,6 +400,14 @@ export default function ContasPage() {
               className="brand-chip rounded-full px-5 py-3 text-sm font-semibold text-ink"
             >
               Limpar
+            </button>
+            <button
+              type="button"
+              onClick={handleDirectorySync}
+              disabled={syncingDirectory}
+              className="brand-chip rounded-full px-5 py-3 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {syncingDirectory ? 'Sincronizando...' : 'Sincronizar base'}
             </button>
           </div>
         </form>
