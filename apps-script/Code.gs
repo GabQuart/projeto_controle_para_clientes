@@ -271,6 +271,25 @@ function resolveDriveImage_(linkOrId) {
 
 function getFirstImageFromFolder_(folderId) {
   var folder = DriveApp.getFolderById(folderId)
+  var directImage = findImageInFolder_(folder)
+
+  if (directImage) {
+    return mapDriveFile_(directImage, folderId)
+  }
+
+  var nestedImage = findImageInPreferredSubfolder_(folder, ['IMG', 'IMAGENS', 'IMGS'])
+
+  if (nestedImage) {
+    return mapDriveFile_(nestedImage, folderId)
+  }
+
+  return {
+    folderId: folderId,
+    originalUrl: 'https://drive.google.com/drive/folders/' + folderId,
+  }
+}
+
+function findImageInFolder_(folder) {
   var files = folder.getFiles()
   var fallbackImage = null
 
@@ -285,18 +304,32 @@ function getFirstImageFromFolder_(folderId) {
     }
 
     if (isMainImageName_(file.getName())) {
-      return mapDriveFile_(file, folderId)
+      return file
     }
   }
 
-  if (fallbackImage) {
-    return mapDriveFile_(fallbackImage, folderId)
+  return fallbackImage
+}
+
+function findImageInPreferredSubfolder_(folder, candidateNames) {
+  var folders = folder.getFolders()
+
+  while (folders.hasNext()) {
+    var childFolder = folders.next()
+    var normalizedChildName = normalizeFolderName_(childFolder.getName())
+
+    for (var index = 0; index < candidateNames.length; index += 1) {
+      if (normalizedChildName === normalizeFolderName_(candidateNames[index])) {
+        return findImageInFolder_(childFolder)
+      }
+    }
   }
 
-  return {
-    folderId: folderId,
-    originalUrl: 'https://drive.google.com/drive/folders/' + folderId,
-  }
+  return null
+}
+
+function normalizeFolderName_(value) {
+  return String(value || '').trim().toUpperCase()
 }
 
 function isMainImageName_(fileName) {
