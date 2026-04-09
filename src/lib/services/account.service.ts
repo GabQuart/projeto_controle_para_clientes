@@ -1,5 +1,6 @@
 import { listCatalog } from '@/lib/services/catalog.service'
 import { compactText } from '@/lib/utils/format'
+import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
 import type {
   AccountAccessScopeRow,
@@ -319,6 +320,33 @@ export async function createAccount(input: CreateAccountInput) {
     throw new Error('Ja existe uma conta cadastrada com este e-mail.')
   }
 
+  let provisionedAuthUserId = ''
+
+  if (input.provisionAuthUser) {
+    const temporaryPassword = compactText(input.temporaryPassword)
+
+    if (temporaryPassword.length < 6) {
+      throw new Error('Informe uma senha temporaria com pelo menos 6 caracteres para criar o login.')
+    }
+
+    const adminSupabase = createAdminClient()
+    const { data: authUserData, error: authError } = await adminSupabase.auth.admin.createUser({
+      email,
+      password: temporaryPassword,
+      email_confirm: input.confirmEmail ?? true,
+      user_metadata: {
+        nome,
+        role: input.role,
+      },
+    })
+
+    if (authError) {
+      throw new Error(`Falha ao criar o login no Supabase Auth: ${authError.message}`)
+    }
+
+    provisionedAuthUserId = authUserData.user.id
+  }
+
   const { data, error } = await supabase
     .from(ACCOUNTS_TABLE)
     .insert({
@@ -332,6 +360,11 @@ export async function createAccount(input: CreateAccountInput) {
     .single()
 
   if (error || !data) {
+    if (provisionedAuthUserId) {
+      const adminSupabase = createAdminClient()
+      await adminSupabase.auth.admin.deleteUser(provisionedAuthUserId)
+    }
+
     throw new Error(`Falha ao criar a conta no Supabase: ${error?.message ?? 'registro nao retornado'}`)
   }
 
@@ -341,6 +374,11 @@ export async function createAccount(input: CreateAccountInput) {
     const { error: scopeError } = await supabase.from(ACCOUNT_SCOPES_TABLE).insert(accessRows)
 
     if (scopeError) {
+      if (provisionedAuthUserId) {
+        const adminSupabase = createAdminClient()
+        await adminSupabase.auth.admin.deleteUser(provisionedAuthUserId)
+      }
+
       throw new Error(`Falha ao criar os relacionamentos de acesso: ${scopeError.message}`)
     }
   }

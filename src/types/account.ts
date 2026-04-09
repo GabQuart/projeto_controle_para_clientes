@@ -45,6 +45,9 @@ export type CreateAccountInput = {
   clienteCods?: string[]
   fornecedorPrefixes?: string[]
   ativo?: boolean
+  provisionAuthUser?: boolean
+  temporaryPassword?: string
+  confirmEmail?: boolean
 }
 
 export type AccountAccessScopeRow = {

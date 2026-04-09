@@ -12,6 +12,9 @@ type FormState = {
   loja: string
   clienteCods: string[]
   fornecedorPrefixes: string[]
+  provisionAuthUser: boolean
+  temporaryPassword: string
+  confirmEmail: boolean
 }
 
 const EMPTY_FORM: FormState = {
@@ -21,6 +24,9 @@ const EMPTY_FORM: FormState = {
   loja: '',
   clienteCods: [],
   fornecedorPrefixes: [],
+  provisionAuthUser: true,
+  temporaryPassword: '',
+  confirmEmail: true,
 }
 
 export default function ContasPage() {
@@ -31,18 +37,28 @@ export default function ContasPage() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [syncingDirectory, setSyncingDirectory] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+
+  async function loadAccountsBundle(refreshDirectory = false) {
+    const response = await fetch(`/api/contas?includeDirectory=1${refreshDirectory ? '&refreshDirectory=1' : ''}`)
+    const payload = await response.json()
+
+    if (!response.ok) {
+      throw new Error(payload.error || 'Falha ao carregar contas')
+    }
+
+    return payload as { data?: UserAccount[]; directory?: AccountDirectoryEntry[] }
+  }
 
   useEffect(() => {
     async function bootstrap() {
       try {
-        const [sessionResponse, accountsResponse] = await Promise.all([
-          fetch('/api/auth/me'),
-          fetch('/api/contas?includeDirectory=1'),
-        ])
+        const sessionResponse = await fetch('/api/auth/me')
+        const accountsResponse = await loadAccountsBundle()
 
         const sessionPayload = await sessionResponse.json()
-        const accountsPayload = await accountsResponse.json()
+        let accountsPayload = accountsResponse
 
         if (!sessionResponse.ok) {
           throw new Error(sessionPayload.error || 'Falha ao carregar sessao')
@@ -58,8 +74,9 @@ export default function ContasPage() {
           return
         }
 
-        if (!accountsResponse.ok) {
-          throw new Error(accountsPayload.error || 'Falha ao carregar contas')
+        if ((accountsPayload.directory ?? []).length === 0) {
+          setSyncingDirectory(true)
+          accountsPayload = await loadAccountsBundle(true)
         }
 
         setAccount(sessionPayload.account)
@@ -71,6 +88,7 @@ export default function ContasPage() {
           message: error instanceof Error ? error.message : 'Falha ao carregar a tela de contas',
         })
       } finally {
+        setSyncingDirectory(false)
         setLoading(false)
       }
     }
@@ -122,13 +140,9 @@ export default function ContasPage() {
         throw new Error(payload.error || 'Falha ao criar conta')
       }
 
-      const refreshResponse = await fetch('/api/contas?includeDirectory=1')
-      const refreshPayload = await refreshResponse.json()
-
-      if (refreshResponse.ok) {
-        setAccounts(refreshPayload.data ?? [])
-        setDirectory(refreshPayload.directory ?? [])
-      }
+      const refreshPayload = await loadAccountsBundle()
+      setAccounts(refreshPayload.data ?? [])
+      setDirectory(refreshPayload.directory ?? [])
 
       setForm(EMPTY_FORM)
       setFeedback({
@@ -170,6 +184,16 @@ export default function ContasPage() {
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <form onSubmit={handleSubmit} className="panel rounded-[32px] p-5 sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-amber">Novo acesso</p>
+          {syncingDirectory ? (
+            <div className="mt-4 rounded-2xl border border-amber/20 bg-amber/10 px-4 py-3 text-sm text-amber">
+              Sincronizando lojas, clientes e fornecedores a partir da base atual...
+            </div>
+          ) : null}
+          {!loading && lojas.length === 0 ? (
+            <div className="mt-4 rounded-2xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-clay">
+              Ainda nao encontramos lojas no diretorio. Verifique se a migracao rodou e se o admin tem acesso para sincronizar a base.
+            </div>
+          ) : null}
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-steel">
               Nome
@@ -238,6 +262,57 @@ export default function ContasPage() {
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="mt-6 rounded-3xl border border-white/10 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Criar login no Supabase</p>
+                <p className="mt-1 text-sm text-steel">
+                  Ao ativar, a conta interna e o usuario de autenticacao sao criados juntos.
+                </p>
+              </div>
+              <label className="brand-chip flex items-center gap-3 rounded-full px-4 py-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={form.provisionAuthUser}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      provisionAuthUser: event.target.checked,
+                      temporaryPassword: event.target.checked ? current.temporaryPassword : '',
+                    }))
+                  }
+                  className="h-4 w-4 rounded border-white/10 bg-slate text-amber focus:ring-amber"
+                />
+                <span>Autenticar e-mail agora</span>
+              </label>
+            </div>
+
+            {form.provisionAuthUser ? (
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-steel">
+                  Senha temporaria
+                  <input
+                    type="password"
+                    value={form.temporaryPassword}
+                    onChange={(event) => setForm((current) => ({ ...current, temporaryPassword: event.target.value }))}
+                    className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+                    placeholder="Minimo 6 caracteres"
+                  />
+                </label>
+
+                <label className="brand-chip mt-6 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm text-ink sm:mt-0">
+                  <input
+                    type="checkbox"
+                    checked={form.confirmEmail}
+                    onChange={(event) => setForm((current) => ({ ...current, confirmEmail: event.target.checked }))}
+                    className="h-4 w-4 rounded border-white/10 bg-slate text-amber focus:ring-amber"
+                  />
+                  <span>Confirmar e-mail automaticamente</span>
+                </label>
+              </div>
+            ) : null}
           </div>
 
           {form.role === 'cliente' && form.loja === 'Presente Net' ? (
