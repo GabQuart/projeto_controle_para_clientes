@@ -1,19 +1,17 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { HistoryTable } from '@/components/HistoryTable'
 import { SearchBar } from '@/components/SearchBar'
-import type { ChangeRequest, ChangeRequestStatus } from '@/types/request'
-import type { Operator } from '@/types/operator'
 import { normalizeText } from '@/lib/utils/format'
-
-const STORAGE_KEY = 'catalogo-marketplace.operator'
+import type { UserAccount } from '@/types/account'
+import type { ChangeRequest, ChangeRequestStatus } from '@/types/request'
 
 export default function HistoricoPage() {
   const router = useRouter()
-  const [operator, setOperator] = useState<Operator | null>(null)
+  const [account, setAccount] = useState<UserAccount | null>(null)
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<ChangeRequestStatus | 'todos'>('todos')
@@ -21,26 +19,33 @@ export default function HistoricoPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const storedOperator = sessionStorage.getItem(STORAGE_KEY)
+    async function loadSession() {
+      try {
+        const response = await fetch('/api/auth/me', { cache: 'no-store' })
+        const payload = await response.json()
 
-    if (!storedOperator) {
-      router.replace('/login')
-      return
+        if (!response.ok) {
+          throw new Error(payload.error || 'Falha ao carregar sessao')
+        }
+
+        if (!payload.account) {
+          router.replace('/login')
+          return
+        }
+
+        setAccount(payload.account)
+      } catch {
+        router.replace('/login')
+      }
     }
 
-    try {
-      setOperator(JSON.parse(storedOperator) as Operator)
-    } catch {
-      router.replace('/login')
-    }
+    loadSession()
   }, [router])
 
   useEffect(() => {
-    if (!operator) {
+    if (!account) {
       return
     }
-
-    const currentOperator = operator
 
     async function loadHistory() {
       setLoading(true)
@@ -48,15 +53,20 @@ export default function HistoricoPage() {
 
       try {
         const params = new URLSearchParams()
-        params.set('loja', currentOperator.loja)
+
         if (status !== 'todos') {
           params.set('status', status)
         }
 
-        const response = await fetch(`/api/solicitacoes?${params.toString()}`)
+        const response = await fetch(`/api/solicitacoes?${params.toString()}`, { cache: 'no-store' })
         const payload = await response.json()
 
         if (!response.ok) {
+          if (response.status === 401) {
+            router.replace('/login')
+            return
+          }
+
           throw new Error(payload.error || 'Falha ao carregar historico')
         }
 
@@ -69,7 +79,7 @@ export default function HistoricoPage() {
     }
 
     loadHistory()
-  }, [operator, status])
+  }, [account, status])
 
   const filteredRequests = useMemo(() => {
     const normalized = normalizeText(search)
@@ -86,41 +96,46 @@ export default function HistoricoPage() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-      <section className="panel rounded-[28px] p-5 sm:rounded-[32px] sm:p-8">
+      <section className="panel rounded-[32px] p-5 sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.28em] text-amber">Historico de solicitacoes</p>
-            <h1 className="mt-3 text-2xl font-black text-ink sm:text-3xl lg:text-4xl">Acompanhamento de pedidos por loja</h1>
-            <p className="mt-3 text-sm text-ink/75 sm:text-base">
-              Filtrando inicialmente pela loja do operador atual: <span className="font-bold">{operator?.loja ?? 'Carregando...'}</span>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Pulse de solicitacoes</p>
+            <h1 className="mt-3 font-display text-2xl font-semibold text-ink sm:text-3xl lg:text-4xl">
+              Historico recortado pela conta autenticada
+            </h1>
+            <p className="mt-3 text-sm text-steel sm:text-base">
+              Sessao atual: <span className="font-semibold text-ink">{account?.nome ?? 'Carregando...'}</span>
             </p>
           </div>
-          <Link href="/catalogo" className="rounded-full border border-black/10 px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber hover:text-amber">
+          <Link
+            href="/catalogo"
+            className="brand-chip rounded-full px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
+          >
             Voltar ao catalogo
           </Link>
         </div>
 
         <div className="mt-8 grid gap-4 lg:grid-cols-[2fr_280px]">
           <SearchBar value={search} onChange={setSearch} placeholder="Filtre por titulo, SKU ou detalhe da solicitacao" label="Busca no historico" />
-          <label className="flex flex-col gap-2 text-sm font-semibold text-ink/80">
+          <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
             Status
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value as ChangeRequestStatus | 'todos')}
-              className="rounded-2xl border border-black/10 bg-white px-4 py-3 text-base outline-none focus:border-amber sm:text-sm"
+              className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
             >
-              <option value="todos">Todos</option>
-              <option value="nao_concluido">Nao concluido</option>
-              <option value="em_andamento">Em andamento</option>
-              <option value="concluido">Concluido</option>
-              <option value="cancelado">Cancelado</option>
+              <option value="todos" className="bg-slate text-ink">Todos</option>
+              <option value="nao_concluido" className="bg-slate text-ink">Nao concluido</option>
+              <option value="em_andamento" className="bg-slate text-ink">Em andamento</option>
+              <option value="concluido" className="bg-slate text-ink">Concluido</option>
+              <option value="cancelado" className="bg-slate text-ink">Cancelado</option>
             </select>
           </label>
         </div>
       </section>
 
       <section className="mt-6">
-        {error ? <div className="mb-4 rounded-2xl bg-clay/10 px-4 py-3 text-sm text-clay">{error}</div> : null}
+        {error ? <div className="mb-4 rounded-2xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-clay">{error}</div> : null}
         {loading ? (
           <div className="panel rounded-3xl p-6 text-sm text-steel">Carregando historico de solicitacoes...</div>
         ) : (

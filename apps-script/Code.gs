@@ -23,6 +23,8 @@ function handleRequest_(method, e) {
         return ok_(getSpreadsheetSheetTitles_(params.spreadsheetId))
       case 'resolveDriveImage':
         return ok_(resolveDriveImage_(params.linkOrId))
+      case 'resolveDriveImageGallery':
+        return ok_(resolveDriveImageGallery_(params.linkOrId, params.limit))
       case 'appendSheetRow':
         appendSheetRow_(body.spreadsheetId, body.sheetName, body.values)
         return ok_(null)
@@ -269,8 +271,68 @@ function resolveDriveImage_(linkOrId) {
   }
 }
 
+function resolveDriveImageGallery_(linkOrId, limitValue) {
+  var resolvedId = extractDriveId_(linkOrId)
+
+  if (!resolvedId) {
+    return { images: [] }
+  }
+
+  var limit = Math.max(1, Math.min(Number(limitValue || 3), 6))
+
+  if (String(linkOrId || '').indexOf('/folders/') !== -1) {
+    return getImageGalleryFromFolder_(resolvedId, limit)
+  }
+
+  return {
+    images: [
+      {
+        fileId: resolvedId,
+        originalUrl: buildDriveFileViewUrl_(resolvedId),
+        usableUrl: buildDriveThumbnailUrl_(resolvedId),
+      },
+    ],
+  }
+}
+
 function getFirstImageFromFolder_(folderId) {
   var folder = DriveApp.getFolderById(folderId)
+  var directImage = findImageInFolder_(folder)
+
+  if (directImage) {
+    return mapDriveFile_(directImage, folderId)
+  }
+
+  var nestedImage = findImageInPreferredSubfolder_(folder, ['IMG', 'IMAGENS', 'IMGS'])
+
+  if (nestedImage) {
+    return mapDriveFile_(nestedImage, folderId)
+  }
+
+  return {
+    folderId: folderId,
+    originalUrl: 'https://drive.google.com/drive/folders/' + folderId,
+  }
+}
+
+function getImageGalleryFromFolder_(folderId, limit) {
+  var folder = DriveApp.getFolderById(folderId)
+  var images = collectImagesFromFolder_(folder, limit)
+
+  if (images.length < limit) {
+    var nestedImages = collectImagesFromPreferredSubfolder_(folder, ['IMG', 'IMAGENS', 'IMGS'], limit - images.length)
+    images = mergeUniqueDriveFiles_(images, nestedImages, limit)
+  }
+
+  return {
+    folderId: folderId,
+    images: images.map(function (file) {
+      return mapDriveFile_(file, folderId)
+    }),
+  }
+}
+
+function findImageInFolder_(folder) {
   var files = folder.getFiles()
   var fallbackImage = null
 
@@ -285,18 +347,99 @@ function getFirstImageFromFolder_(folderId) {
     }
 
     if (isMainImageName_(file.getName())) {
-      return mapDriveFile_(file, folderId)
+      return file
     }
   }
 
-  if (fallbackImage) {
-    return mapDriveFile_(fallbackImage, folderId)
+  return fallbackImage
+}
+
+function findImageInPreferredSubfolder_(folder, candidateNames) {
+  var folders = folder.getFolders()
+
+  while (folders.hasNext()) {
+    var childFolder = folders.next()
+    var normalizedChildName = normalizeFolderName_(childFolder.getName())
+
+    for (var index = 0; index < candidateNames.length; index += 1) {
+      if (normalizedChildName === normalizeFolderName_(candidateNames[index])) {
+        return findImageInFolder_(childFolder)
+      }
+    }
   }
 
-  return {
-    folderId: folderId,
-    originalUrl: 'https://drive.google.com/drive/folders/' + folderId,
+  return null
+}
+
+function collectImagesFromFolder_(folder, limit) {
+  var files = folder.getFiles()
+  var mainImages = []
+  var fallbackImages = []
+
+  while (files.hasNext()) {
+    var file = files.next()
+    if (String(file.getMimeType() || '').indexOf('image/') !== 0) {
+      continue
+    }
+
+    if (isMainImageName_(file.getName())) {
+      mainImages.push(file)
+      continue
+    }
+
+    fallbackImages.push(file)
   }
+
+  return mergeUniqueDriveFiles_(mainImages, fallbackImages, limit)
+}
+
+function collectImagesFromPreferredSubfolder_(folder, candidateNames, limit) {
+  var folders = folder.getFolders()
+
+  while (folders.hasNext()) {
+    var childFolder = folders.next()
+    var normalizedChildName = normalizeFolderName_(childFolder.getName())
+
+    for (var index = 0; index < candidateNames.length; index += 1) {
+      if (normalizedChildName === normalizeFolderName_(candidateNames[index])) {
+        return collectImagesFromFolder_(childFolder, limit)
+      }
+    }
+  }
+
+  return []
+}
+
+function mergeUniqueDriveFiles_(primaryFiles, secondaryFiles, limit) {
+  var merged = []
+  var seenIds = {}
+  var collections = [primaryFiles || [], secondaryFiles || []]
+
+  for (var collectionIndex = 0; collectionIndex < collections.length; collectionIndex += 1) {
+    var collection = collections[collectionIndex]
+
+    for (var fileIndex = 0; fileIndex < collection.length; fileIndex += 1) {
+      var file = collection[fileIndex]
+      var fileId = file.getId()
+
+      if (seenIds[fileId]) {
+        continue
+      }
+
+      seenIds[fileId] = true
+      merged.push(file)
+
+      if (merged.length >= limit) {
+        return merged
+      }
+    }
+  }
+
+  return merged
+}
+
+function normalizeFolderName_(value) {
+  return String(value || '').trim().toUpperCase()
 }
 
 function isMainImageName_(fileName) {

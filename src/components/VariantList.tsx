@@ -19,10 +19,10 @@ function VariantActionRow({
   onAction: (input: { product: CatalogProduct; variant: CatalogVariant; requestedAction: RequestedCatalogAction }) => void
 }) {
   return (
-    <div className="rounded-2xl border border-black/10 bg-white/70 p-3">
+    <div className="brand-chip rounded-2xl p-3">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <p className="break-all text-sm font-bold text-ink">{variant.sku}</p>
+          <p className="break-all text-sm font-semibold text-ink">{variant.sku}</p>
           <p className="text-sm text-steel">
             {[variant.variacao || variant.cor, variant.tamanho].filter(Boolean).join(' | ') || 'Sem detalhamento adicional'}
           </p>
@@ -35,7 +35,7 @@ function VariantActionRow({
 
 export function VariantList({ product, onAction }: VariantListProps) {
   if (product.variacoes.length === 0) {
-    return <p className="rounded-2xl bg-mist px-4 py-3 text-sm text-steel">Nenhuma variacao cadastrada para este produto.</p>
+    return <p className="brand-chip rounded-2xl px-4 py-3 text-sm text-steel">Nenhuma variacao cadastrada para este produto.</p>
   }
 
   return (

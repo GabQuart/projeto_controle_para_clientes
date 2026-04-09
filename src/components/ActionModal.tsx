@@ -3,7 +3,7 @@
 import type { FormEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
-import type { Operator } from '@/types/operator'
+import type { UserAccount } from '@/types/account'
 import type { ChangeRequestType, RequestedCatalogAction } from '@/types/request'
 
 type SelectedCatalogAction = {
@@ -14,7 +14,7 @@ type SelectedCatalogAction = {
 
 type ActionModalProps = {
   open: boolean
-  operator: Operator | null
+  operator: UserAccount | null
   item: SelectedCatalogAction | null
   onClose: () => void
   onCreated: () => void
@@ -205,43 +205,43 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/45 p-0 sm:p-4 sm:items-center">
-      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] bg-white shadow-2xl sm:rounded-[28px]">
-        <div className="flex items-start justify-between gap-4 border-b border-black/10 px-4 py-4 sm:px-6">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-0 backdrop-blur-sm sm:p-4 sm:items-center">
+      <div className="panel flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] sm:rounded-[28px]">
+        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6">
           <div className="min-w-0">
-            <p className="text-xs font-bold uppercase tracking-[0.24em] text-amber">{getActionTitle(currentItem.requestedAction)}</p>
-            <h2 className="text-lg font-black text-ink sm:text-2xl">{currentItem.product.titulo}</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">{getActionTitle(currentItem.requestedAction)}</p>
+            <h2 className="font-display text-xl font-semibold text-ink sm:text-2xl">{currentItem.product.titulo}</h2>
             <p className="mt-1 break-all text-sm text-steel">
               {currentItem.product.skuBase}
               {currentItem.variant ? ` | ${currentItem.variant.sku}` : ''}
             </p>
-            <p className="mt-2 text-sm text-ink/70">{getActionDescription(currentItem.requestedAction, isVariantAction)}</p>
+            <p className="mt-2 text-sm text-steel">{getActionDescription(currentItem.requestedAction, isVariantAction)}</p>
           </div>
-          <button type="button" onClick={onClose} className="shrink-0 rounded-full border border-black/10 px-3 py-2 text-sm font-semibold text-ink">
+          <button type="button" onClick={onClose} className="brand-chip shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-ink">
             Fechar
           </button>
         </div>
 
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleSubmit}>
-          <div className="flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
+          <div className="brand-scrollbar flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl bg-mist p-4 text-sm text-ink/80">
-                <p><span className="font-semibold">Operador:</span> {currentOperator.nome}</p>
-                <p><span className="font-semibold">Loja:</span> {currentItem.product.loja}</p>
-                <p><span className="font-semibold">Cliente:</span> {currentItem.product.clienteCod}</p>
+              <div className="brand-chip rounded-2xl p-4 text-sm text-steel">
+                <p><span className="font-semibold text-ink">Operador:</span> {currentOperator.nome}</p>
+                <p><span className="font-semibold text-ink">Loja:</span> {currentItem.product.loja}</p>
+                <p><span className="font-semibold text-ink">Cliente:</span> {currentItem.product.clienteCod}</p>
               </div>
-              <div className="rounded-2xl bg-mist p-4 text-sm text-ink/80">
-                <p><span className="font-semibold">Acao:</span> {getActionTitle(currentItem.requestedAction)}</p>
-                <p><span className="font-semibold">Tipo registrado:</span> {requestType}</p>
-                <p><span className="font-semibold">Variacoes no produto:</span> {currentItem.product.variacoes.length}</p>
+              <div className="brand-chip rounded-2xl p-4 text-sm text-steel">
+                <p><span className="font-semibold text-ink">Acao:</span> {getActionTitle(currentItem.requestedAction)}</p>
+                <p><span className="font-semibold text-ink">Tipo registrado:</span> {requestType}</p>
+                <p><span className="font-semibold text-ink">Variacoes no produto:</span> {currentItem.product.variacoes.length}</p>
               </div>
             </div>
 
             {showVariantSelection ? (
-              <section className="space-y-3 rounded-3xl border border-black/10 p-4">
+              <section className="space-y-3 rounded-3xl border border-white/10 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-ink">Variacoes envolvidas</p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Variacoes envolvidas</p>
                     <p className="text-sm text-steel">
                       {currentItem.requestedAction === 'alteracao_especifica'
                         ? 'Marque apenas as variacoes afetadas, se quiser detalhar a acao.'
@@ -252,14 +252,14 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
                     <button
                       type="button"
                       onClick={() => setSelectedVariantSkus(selectableVariants.map((variant) => variant.sku))}
-                      className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-ink"
+                      className="brand-chip rounded-full px-3 py-2 text-xs font-semibold text-ink"
                     >
                       Selecionar todas
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedVariantSkus([])}
-                      className="rounded-full border border-black/10 px-3 py-2 text-xs font-semibold text-ink"
+                      className="brand-chip rounded-full px-3 py-2 text-xs font-semibold text-ink"
                     >
                       Limpar
                     </button>
@@ -268,12 +268,12 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
 
                 <div className="grid gap-2">
                   {selectableVariants.map((variant) => (
-                    <label key={variant.sku} className="flex items-start gap-3 rounded-2xl border border-black/10 px-3 py-3 text-sm text-ink">
+                    <label key={variant.sku} className="brand-chip flex items-start gap-3 rounded-2xl px-3 py-3 text-sm text-ink">
                       <input
                         type="checkbox"
                         checked={selectedVariantSkus.includes(variant.sku)}
                         onChange={() => toggleVariantSelection(variant.sku)}
-                        className="mt-1 h-4 w-4 rounded border-black/20 text-amber focus:ring-amber"
+                        className="mt-1 h-4 w-4 rounded border-white/10 bg-slate text-amber focus:ring-amber"
                       />
                       <span className="min-w-0">
                         <span className="block break-all font-semibold">{variant.sku}</span>
@@ -288,7 +288,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
             ) : null}
 
             {needsStock ? (
-              <label className="flex flex-col gap-2 text-sm font-semibold text-ink/80">
+              <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
                 Estoque geral para as variacoes selecionadas
                 <input
                   type="number"
@@ -298,12 +298,12 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
                   value={estoqueGeral}
                   onChange={(event) => setEstoqueGeral(event.target.value)}
                   placeholder="Ex.: 20"
-                  className="rounded-2xl border border-black/10 bg-mist px-4 py-3 text-base outline-none focus:border-amber sm:text-sm"
+                  className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
                 />
               </label>
             ) : null}
 
-            <label className="flex flex-col gap-2 text-sm font-semibold text-ink/80">
+            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
               Observacao
               <textarea
                 value={detalhe}
@@ -311,26 +311,26 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
                 rows={5}
                 required
                 placeholder="Descreva com clareza o que precisa ser ajustado."
-                className="rounded-2xl border border-black/10 bg-mist px-4 py-3 text-base outline-none focus:border-amber sm:text-sm"
+                className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none placeholder:text-steel focus:border-amber/40 sm:text-sm"
               />
             </label>
 
             {feedback ? (
-              <div className={`rounded-2xl px-4 py-3 text-sm font-medium ${feedback.type === 'success' ? 'bg-pine/10 text-pine' : 'bg-clay/10 text-clay'}`}>
+              <div className={`rounded-2xl px-4 py-3 text-sm font-medium ${feedback.type === 'success' ? 'border border-pine/30 bg-pine/10 text-pine' : 'border border-clay/30 bg-clay/10 text-clay'}`}>
                 {feedback.message}
               </div>
             ) : null}
           </div>
 
-          <div className="border-t border-black/10 px-4 py-4 sm:px-6">
+          <div className="border-t border-white/10 px-4 py-4 sm:px-6">
             <div className="grid gap-3 sm:flex sm:flex-row sm:justify-end">
-              <button type="button" onClick={onClose} className="rounded-full border border-black/10 px-5 py-3 text-sm font-semibold text-ink">
+              <button type="button" onClick={onClose} className="brand-chip rounded-full px-5 py-3 text-sm font-semibold text-ink">
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-cobalt px-5 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#418dff] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? 'Salvando...' : getActionButtonLabel(currentItem.requestedAction)}
               </button>
