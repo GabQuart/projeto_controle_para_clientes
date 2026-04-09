@@ -18,6 +18,7 @@ type ProductRowProps = {
 export function ProductRow({ product, expanded, onToggle, onAction }: ProductRowProps) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const imageSrc = product.fotoRef || '/placeholder-product.svg'
+  const initialGallery = Array.from(new Set([...(product.fotoGaleria ?? []), imageSrc].filter(Boolean))).slice(0, 3)
 
   return (
     <>
@@ -78,7 +79,8 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
       </article>
       <ImagePreviewModal
         open={previewOpen}
-        imageSrc={imageSrc}
+        skuBase={product.skuBase}
+        initialImages={initialGallery}
         imageAlt={product.titulo}
         subtitle={`${product.skuBase} | ${product.loja}`}
         onClose={() => setPreviewOpen(false)}

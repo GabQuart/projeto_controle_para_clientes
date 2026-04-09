@@ -4,6 +4,7 @@ import {
   extractGoogleDriveId,
   isGoogleDriveFolderLink,
   resolveReferenceImage,
+  resolveReferenceImageGallery,
 } from '@/lib/google/drive'
 import { compactText, normalizeText, splitList, toBooleanFlag } from '@/lib/utils/format'
 import { buildDriveThumbnailUrl } from '@/lib/utils/drive-url'
@@ -105,6 +106,20 @@ function isResolvedDriveImage(product: CatalogProduct) {
   return Boolean(product.fotoRef?.includes('drive.google.com/thumbnail'))
 }
 
+function normalizeGalleryUrls(product: CatalogProduct, images: string[]) {
+  const uniqueImages = Array.from(new Set(images.filter(Boolean)))
+
+  if (uniqueImages.length > 0) {
+    return uniqueImages.slice(0, 3)
+  }
+
+  if (product.fotoRef) {
+    return [product.fotoRef]
+  }
+
+  return ['/placeholder-product.svg']
+}
+
 async function fetchCatalogFromSource() {
   if (!SOURCE_SHEET_ID) {
     throw new Error('GOOGLE_SOURCE_SHEET_ID nao configurado')
@@ -173,7 +188,6 @@ export async function enrichCatalogProductImages(products: CatalogProduct[]) {
         return {
           skuBase: product.skuBase,
           fotoRef: image.usableUrl,
-          fotoFileId: image.fileId ?? product.fotoFileId,
         }
       } catch {
         return null
@@ -183,7 +197,7 @@ export async function enrichCatalogProductImages(products: CatalogProduct[]) {
 
   const resolvedMap = new Map(
     resolvedEntries
-      .filter((entry): entry is { skuBase: string; fotoRef: string; fotoFileId: string } => Boolean(entry?.fotoRef && entry.fotoFileId))
+      .filter((entry): entry is { skuBase: string; fotoRef: string } => Boolean(entry?.fotoRef))
       .map((entry) => [entry.skuBase, entry]),
   )
 
@@ -202,8 +216,6 @@ export async function enrichCatalogProductImages(products: CatalogProduct[]) {
       return {
         ...product,
         fotoRef: resolved.fotoRef,
-        fotoFileId: resolved.fotoFileId,
-        fotoDriveKind: 'file',
       }
     }),
   )
@@ -218,8 +230,6 @@ export async function enrichCatalogProductImages(products: CatalogProduct[]) {
     return {
       ...product,
       fotoRef: resolved.fotoRef,
-      fotoFileId: resolved.fotoFileId,
-      fotoDriveKind: 'file' as const,
     }
   })
 }
@@ -245,6 +255,48 @@ export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariac
     product,
     variant,
   }
+}
+
+export async function getCatalogProductGallery(input: { skuBase: string; forceRefresh?: boolean }) {
+  const normalizedSkuBase = normalizeSku(input.skuBase)
+  const { items } = await getCatalogBase({ forceRefresh: input.forceRefresh })
+  const product = items.find((item) => item.skuBase === normalizedSkuBase)
+
+  if (!product) {
+    throw new Error('Produto nao encontrado para carregar a galeria.')
+  }
+
+  if (product.fotoGaleria?.length) {
+    return product.fotoGaleria
+  }
+
+  if (product.fotoDriveKind !== 'folder' || !product.fotoFileId) {
+    return normalizeGalleryUrls(product, [product.fotoRef || '/placeholder-product.svg'])
+  }
+
+  const gallery = await resolveReferenceImageGallery(buildGoogleDriveFolderLink(product.fotoFileId), { limit: 3 })
+  const urls = normalizeGalleryUrls(
+    product,
+    gallery.images.map((image) => image.usableUrl || '').filter(Boolean),
+  )
+  const galleryFileIds = gallery.images.map((image) => image.fileId || '').filter(Boolean)
+
+  await patchCatalogCacheItems((cachedItems) =>
+    cachedItems.map((cachedProduct) => {
+      if (cachedProduct.skuBase !== normalizedSkuBase) {
+        return cachedProduct
+      }
+
+      return {
+        ...cachedProduct,
+        fotoRef: urls[0] || cachedProduct.fotoRef,
+        fotoGaleria: urls,
+        fotoGaleriaFileIds: galleryFileIds,
+      }
+    }),
+  )
+
+  return urls
 }
 
 export async function updateCatalogVariantStatuses(statusBySku: Record<string, boolean>) {
