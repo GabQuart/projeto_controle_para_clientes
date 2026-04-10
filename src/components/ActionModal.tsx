@@ -6,10 +6,17 @@ import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
 import type { UserAccount } from '@/types/account'
 import type { ChangeRequestType, RequestedCatalogAction } from '@/types/request'
 
+export type CompletedCatalogAction = {
+  skuBase: string
+  updatedVariantSkus: string[]
+  nextActive: boolean
+}
+
 type SelectedCatalogAction = {
   product: CatalogProduct
   variant?: CatalogVariant
   requestedAction: RequestedCatalogAction
+  quantity?: number
 }
 
 type ActionModalProps = {
@@ -17,61 +24,15 @@ type ActionModalProps = {
   operator: UserAccount | null
   item: SelectedCatalogAction | null
   onClose: () => void
-  onCreated: () => void
+  onCreated: (result: CompletedCatalogAction) => void
 }
 
 function mapRequestedActionToRequestType(requestedAction: RequestedCatalogAction, isVariantAction: boolean): ChangeRequestType {
-  if (requestedAction === 'alteracao_especifica') {
-    return 'alteracao_especifica'
-  }
-
   if (requestedAction === 'ativar') {
     return isVariantAction ? 'ativar_variacao' : 'ativar_produto'
   }
 
   return isVariantAction ? 'inativar_variacao' : 'inativar_produto'
-}
-
-function getActionTitle(requestedAction: RequestedCatalogAction) {
-  if (requestedAction === 'ativar') {
-    return 'Ativar item'
-  }
-
-  if (requestedAction === 'inativar') {
-    return 'Inativar item'
-  }
-
-  return 'Alteracao especifica'
-}
-
-function getActionButtonLabel(requestedAction: RequestedCatalogAction) {
-  if (requestedAction === 'ativar') {
-    return 'Ativar e registrar'
-  }
-
-  if (requestedAction === 'inativar') {
-    return 'Inativar e registrar'
-  }
-
-  return 'Salvar solicitacao'
-}
-
-function getActionDescription(requestedAction: RequestedCatalogAction, hasVariant: boolean) {
-  if (requestedAction === 'ativar') {
-    return hasVariant
-      ? 'Confirme o estoque geral para a variacao selecionada antes de ativar.'
-      : 'Escolha as variacoes que devem voltar como ativas e informe o estoque geral para elas.'
-  }
-
-  if (requestedAction === 'inativar') {
-    return hasVariant
-      ? 'Revise a variacao selecionada antes de enviar a inativacao.'
-      : 'Selecione quais variacoes ativas devem ser inativadas agora.'
-  }
-
-  return hasVariant
-    ? 'Descreva com clareza a acao esperada para esta variacao.'
-    : 'Explique a alteracao desejada e, se quiser, marque as variacoes afetadas.'
 }
 
 function getSelectableVariants(item: SelectedCatalogAction | null) {
@@ -89,15 +50,10 @@ function getSelectableVariants(item: SelectedCatalogAction | null) {
     return variants.filter((variant) => !variant.ativo)
   }
 
-  if (item.requestedAction === 'inativar') {
-    return variants.filter((variant) => Boolean(variant.ativo))
-  }
-
-  return variants
+  return variants.filter((variant) => Boolean(variant.ativo))
 }
 
 export function ActionModal({ open, operator, item, onClose, onCreated }: ActionModalProps) {
-  const [detalhe, setDetalhe] = useState('')
   const [estoqueGeral, setEstoqueGeral] = useState('')
   const [selectedVariantSkus, setSelectedVariantSkus] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -106,7 +62,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
   const selectableVariants = useMemo(() => getSelectableVariants(item), [item])
   const isVariantAction = Boolean(item?.variant)
   const requestType = useMemo(
-    () => (item ? mapRequestedActionToRequestType(item.requestedAction, isVariantAction) : 'alteracao_especifica'),
+    () => (item ? mapRequestedActionToRequestType(item.requestedAction, isVariantAction) : 'inativar_produto'),
     [isVariantAction, item],
   )
 
@@ -115,20 +71,8 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
       return
     }
 
-    setDetalhe('')
-    setEstoqueGeral('')
     setFeedback(null)
-
-    if (item.variant) {
-      setSelectedVariantSkus([item.variant.sku])
-      return
-    }
-
-    if (item.requestedAction === 'alteracao_especifica') {
-      setSelectedVariantSkus([])
-      return
-    }
-
+    setEstoqueGeral(item.quantity ? String(item.quantity) : '')
     setSelectedVariantSkus(selectableVariants.map((variant) => variant.sku))
   }, [item, open, selectableVariants])
 
@@ -139,8 +83,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
   const currentItem = item
   const currentOperator = operator
   const needsStock = currentItem.requestedAction === 'ativar'
-  const showVariantSelection = !currentItem.variant && currentItem.product.variacoes.length > 0
-  const requiresVariantSelection = !currentItem.variant && currentItem.requestedAction !== 'alteracao_especifica'
+  const canPickVariants = currentItem.requestedAction === 'ativar' && !currentItem.variant && selectableVariants.length > 1
 
   function toggleVariantSelection(sku: string) {
     setSelectedVariantSkus((current) =>
@@ -153,14 +96,14 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
     setSubmitting(true)
     setFeedback(null)
 
-    if (requiresVariantSelection && selectedVariantSkus.length === 0) {
-      setFeedback({ type: 'error', message: 'Selecione pelo menos uma variacao para concluir essa acao.' })
+    if (selectedVariantSkus.length === 0) {
+      setFeedback({ type: 'error', message: 'Nao existe variacao elegivel para esta acao.' })
       setSubmitting(false)
       return
     }
 
     if (needsStock && !estoqueGeral) {
-      setFeedback({ type: 'error', message: 'Preencha o estoque geral para ativar as variacoes selecionadas.' })
+      setFeedback({ type: 'error', message: 'Preencha a quantidade para ativar as variacoes selecionadas.' })
       setSubmitting(false)
       return
     }
@@ -179,7 +122,6 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
           skuVariacao: currentItem.variant?.sku,
           titulo: currentItem.product.titulo,
           tipoAlteracao: requestType,
-          detalhe,
           variacoesSelecionadas: selectedVariantSkus,
           estoqueGeral: needsStock ? Number(estoqueGeral) : undefined,
         }),
@@ -191,9 +133,13 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
         throw new Error(payload.error || 'Nao foi possivel salvar a solicitacao')
       }
 
-      setFeedback({ type: 'success', message: 'Solicitacao registrada com sucesso.' })
-      onCreated()
-      window.setTimeout(() => onClose(), 900)
+      setFeedback({ type: 'success', message: 'Acao enviada para a fila com sucesso.' })
+      onCreated({
+        skuBase: currentItem.product.skuBase,
+        updatedVariantSkus: selectedVariantSkus,
+        nextActive: currentItem.requestedAction === 'ativar',
+      })
+      window.setTimeout(() => onClose(), 700)
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -205,17 +151,18 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-0 backdrop-blur-sm sm:p-4 sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div className="panel flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] sm:rounded-[28px]">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">{getActionTitle(currentItem.requestedAction)}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">
+              {currentItem.requestedAction === 'ativar' ? 'Confirmar ativacao' : 'Confirmar inativacao'}
+            </p>
             <h2 className="font-display text-xl font-semibold text-ink sm:text-2xl">{currentItem.product.titulo}</h2>
             <p className="mt-1 break-all text-sm text-steel">
               {currentItem.product.skuBase}
               {currentItem.variant ? ` | ${currentItem.variant.sku}` : ''}
             </p>
-            <p className="mt-2 text-sm text-steel">{getActionDescription(currentItem.requestedAction, isVariantAction)}</p>
           </div>
           <button type="button" onClick={onClose} className="brand-chip shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-ink">
             Fechar
@@ -226,27 +173,38 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
           <div className="brand-scrollbar flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="brand-chip rounded-2xl p-4 text-sm text-steel">
-                <p><span className="font-semibold text-ink">Operador:</span> {currentOperator.nome}</p>
                 <p><span className="font-semibold text-ink">Loja:</span> {currentItem.product.loja}</p>
-                <p><span className="font-semibold text-ink">Cliente:</span> {currentItem.product.clienteCod}</p>
+                <p><span className="font-semibold text-ink">SKU:</span> {currentItem.product.skuBase}</p>
+                <p><span className="font-semibold text-ink">Usuario:</span> {currentOperator.nome}</p>
               </div>
               <div className="brand-chip rounded-2xl p-4 text-sm text-steel">
-                <p><span className="font-semibold text-ink">Acao:</span> {getActionTitle(currentItem.requestedAction)}</p>
-                <p><span className="font-semibold text-ink">Tipo registrado:</span> {requestType}</p>
-                <p><span className="font-semibold text-ink">Variacoes no produto:</span> {currentItem.product.variacoes.length}</p>
+                <p><span className="font-semibold text-ink">Acao:</span> {currentItem.requestedAction === 'ativar' ? 'Ativar' : 'Inativar'}</p>
+                <p><span className="font-semibold text-ink">Variacoes:</span> {selectedVariantSkus.length}</p>
               </div>
             </div>
 
-            {showVariantSelection ? (
+            {needsStock ? (
+              <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
+                Quantidade
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputMode="numeric"
+                  value={estoqueGeral}
+                  onChange={(event) => setEstoqueGeral(event.target.value)}
+                  placeholder="Ex.: 20"
+                  className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+                />
+              </label>
+            ) : null}
+
+            {canPickVariants ? (
               <section className="space-y-3 rounded-3xl border border-white/10 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Variacoes envolvidas</p>
-                    <p className="text-sm text-steel">
-                      {currentItem.requestedAction === 'alteracao_especifica'
-                        ? 'Marque apenas as variacoes afetadas, se quiser detalhar a acao.'
-                        : 'Escolha todas ou apenas algumas variacoes elegiveis para essa mudanca.'}
-                    </p>
+                    <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Variacoes</p>
+                    <p className="text-sm text-steel">Escolha o que sera ativado.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -285,35 +243,13 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
                   ))}
                 </div>
               </section>
-            ) : null}
-
-            {needsStock ? (
-              <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-                Estoque geral para as variacoes selecionadas
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  inputMode="numeric"
-                  value={estoqueGeral}
-                  onChange={(event) => setEstoqueGeral(event.target.value)}
-                  placeholder="Ex.: 20"
-                  className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-                />
-              </label>
-            ) : null}
-
-            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-              Observacao
-              <textarea
-                value={detalhe}
-                onChange={(event) => setDetalhe(event.target.value)}
-                rows={5}
-                required
-                placeholder="Descreva com clareza o que precisa ser ajustado."
-                className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none placeholder:text-steel focus:border-amber/40 sm:text-sm"
-              />
-            </label>
+            ) : (
+              <div className="brand-chip rounded-2xl p-4 text-sm text-steel">
+                {selectedVariantSkus.length === 1
+                  ? `Variacao selecionada: ${selectedVariantSkus[0]}`
+                  : `${selectedVariantSkus.length} variacao(oes) selecionada(s)`}
+              </div>
+            )}
 
             {feedback ? (
               <div className={`rounded-2xl px-4 py-3 text-sm font-medium ${feedback.type === 'success' ? 'border border-pine/30 bg-pine/10 text-pine' : 'border border-clay/30 bg-clay/10 text-clay'}`}>
@@ -332,7 +268,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
                 disabled={submitting}
                 className="rounded-full bg-cobalt px-5 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#418dff] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {submitting ? 'Salvando...' : getActionButtonLabel(currentItem.requestedAction)}
+                {submitting ? 'Enviando...' : currentItem.requestedAction === 'ativar' ? 'Confirmar ativacao' : 'Confirmar inativacao'}
               </button>
             </div>
           </div>

@@ -10,7 +10,7 @@ type SearchBarProps = {
 export function SearchBar({
   value,
   onChange,
-  placeholder = 'Busque por titulo, SKU base ou SKU da variacao',
+  placeholder = 'Buscar por nome ou SKU',
   label = 'Busca',
 }: SearchBarProps) {
   return (

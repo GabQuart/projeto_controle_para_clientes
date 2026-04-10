@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { HistoryTable } from '@/components/HistoryTable'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 import { SearchBar } from '@/components/SearchBar'
 import { normalizeText } from '@/lib/utils/format'
 import type { UserAccount } from '@/types/account'
@@ -99,13 +100,9 @@ export default function HistoricoPage() {
       <section className="panel rounded-[32px] p-5 sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Pulse de solicitacoes</p>
-            <h1 className="mt-3 font-display text-2xl font-semibold text-ink sm:text-3xl lg:text-4xl">
-              Historico recortado pela conta autenticada
-            </h1>
-            <p className="mt-3 text-sm text-steel sm:text-base">
-              Sessao atual: <span className="font-semibold text-ink">{account?.nome ?? 'Carregando...'}</span>
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Historico</p>
+            <h1 className="mt-3 font-display text-2xl font-semibold text-ink sm:text-3xl lg:text-4xl">Solicitacoes da conta</h1>
+            <p className="mt-3 text-sm text-steel sm:text-base">{account?.nome ?? 'Carregando...'}</p>
           </div>
           <Link
             href="/catalogo"
@@ -116,7 +113,7 @@ export default function HistoricoPage() {
         </div>
 
         <div className="mt-8 grid gap-4 lg:grid-cols-[2fr_280px]">
-          <SearchBar value={search} onChange={setSearch} placeholder="Filtre por titulo, SKU ou detalhe da solicitacao" label="Busca no historico" />
+          <SearchBar value={search} onChange={setSearch} placeholder="Buscar por nome, SKU ou detalhe" label="Busca no historico" />
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
             Status
             <select
@@ -137,11 +134,12 @@ export default function HistoricoPage() {
       <section className="mt-6">
         {error ? <div className="mb-4 rounded-2xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-clay">{error}</div> : null}
         {loading ? (
-          <div className="panel rounded-3xl p-6 text-sm text-steel">Carregando historico de solicitacoes...</div>
+          <div className="panel rounded-3xl p-6 text-sm text-steel">Carregando historico...</div>
         ) : (
           <HistoryTable requests={filteredRequests} />
         )}
       </section>
+      <LoadingOverlay open={loading} label="Carregando historico..." />
     </main>
   )
 }

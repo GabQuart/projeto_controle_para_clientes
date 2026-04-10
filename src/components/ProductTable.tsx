@@ -6,7 +6,7 @@ type ProductTableProps = {
   products: CatalogProduct[]
   expandedIds: string[]
   onToggle: (skuBase: string) => void
-  onAction: (input: { product: CatalogProduct; variant?: CatalogVariant; requestedAction: RequestedCatalogAction }) => void
+  onAction: (input: { product: CatalogProduct; variant?: CatalogVariant; requestedAction: RequestedCatalogAction; quantity?: number }) => void
 }
 
 export function ProductTable({ products, expandedIds, onToggle, onAction }: ProductTableProps) {

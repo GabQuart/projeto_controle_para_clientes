@@ -7,6 +7,24 @@ type HistoryTableProps = {
   requests: ChangeRequest[]
 }
 
+function getHistoryImageSrc(value?: string) {
+  const normalized = (value ?? '').trim()
+
+  if (!normalized) {
+    return '/placeholder-product.svg'
+  }
+
+  if (normalized.startsWith('/')) {
+    return normalized
+  }
+
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized
+  }
+
+  return '/placeholder-product.svg'
+}
+
 export function HistoryTable({ requests }: HistoryTableProps) {
   if (requests.length === 0) {
     return (
@@ -24,7 +42,7 @@ export function HistoryTable({ requests }: HistoryTableProps) {
             <div className="flex flex-col gap-4 sm:flex-row">
               <div className="brand-glow relative h-20 w-full overflow-hidden rounded-2xl border border-white/10 bg-mist sm:w-20">
                 <Image
-                  src={request.fotoRef || '/placeholder-product.svg'}
+                  src={getHistoryImageSrc(request.fotoRef)}
                   alt={request.titulo}
                   fill
                   className="object-cover"
@@ -37,11 +55,10 @@ export function HistoryTable({ requests }: HistoryTableProps) {
                   <h3 className="font-display text-xl font-semibold tracking-[0.04em] text-ink">{request.titulo}</h3>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs text-steel sm:text-sm">
-                  <span className="brand-chip rounded-full px-3 py-1">SKU base: {request.skuBase}</span>
+                  <span className="brand-chip rounded-full px-3 py-1">SKU catalogo: {request.skuBase}</span>
                   {request.skuVariacao ? (
-                    <span className="brand-chip rounded-full px-3 py-1">Variacao: {request.skuVariacao}</span>
+                    <span className="brand-chip rounded-full px-3 py-1">SKU: {request.skuVariacao}</span>
                   ) : null}
-                  <span className="brand-chip rounded-full px-3 py-1">Operador: {request.operadorNome}</span>
                 </div>
                 <p className="text-sm uppercase tracking-[0.18em] text-steel">{request.tipoAlteracao.replaceAll('_', ' ')}</p>
                 <p className="text-sm text-ink/80">{request.detalhe}</p>

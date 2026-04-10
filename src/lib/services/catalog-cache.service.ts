@@ -70,11 +70,11 @@ export async function getCatalogCache(
 ) {
   if (!options.forceRefresh && memoryCache && isFresh(memoryCache.updatedAt)) {
     return {
-      items: memoryCache.items,
-      metadata: {
-        updatedAt: memoryCache.updatedAt,
-        source: 'cache',
-      } satisfies CatalogCacheMetadata,
+        items: memoryCache.items,
+        metadata: {
+          updatedAt: memoryCache.updatedAt,
+          source: 'cache',
+        } satisfies CatalogCacheMetadata,
     }
   }
 
@@ -84,11 +84,11 @@ export async function getCatalogCache(
     if (diskCache && isFresh(diskCache.updatedAt)) {
       memoryCache = diskCache
 
-      return {
-        items: diskCache.items,
-        metadata: {
-          updatedAt: diskCache.updatedAt,
-          source: 'cache',
+        return {
+          items: diskCache.items,
+          metadata: {
+            updatedAt: diskCache.updatedAt,
+            source: 'cache',
         } satisfies CatalogCacheMetadata,
       }
     }
@@ -101,7 +101,7 @@ export async function getCatalogCache(
       items: payload.items,
       metadata: {
         updatedAt: payload.updatedAt,
-        source: 'apps_script',
+        source: 'supabase',
       } satisfies CatalogCacheMetadata,
     }
   }
@@ -125,7 +125,7 @@ export async function getCatalogCache(
       items: payload.items,
       metadata: {
         updatedAt: payload.updatedAt,
-        source: 'apps_script',
+        source: 'supabase',
       } satisfies CatalogCacheMetadata,
     }
   } finally {

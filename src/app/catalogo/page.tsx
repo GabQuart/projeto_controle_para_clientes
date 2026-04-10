@@ -3,12 +3,14 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { ActionModal } from '@/components/ActionModal'
+import { ActionModal, type CompletedCatalogAction } from '@/components/ActionModal'
+import { AlertModal } from '@/components/AlertModal'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 import { PaginationControls } from '@/components/PaginationControls'
 import { ProductTable } from '@/components/ProductTable'
 import { SearchBar } from '@/components/SearchBar'
 import type { UserAccount } from '@/types/account'
-import type { CatalogPagination, CatalogProduct, CatalogVariant } from '@/types/catalog'
+import type { CatalogPagination, CatalogProduct, CatalogStatusFilter, CatalogVariant } from '@/types/catalog'
 import type { RequestedCatalogAction } from '@/types/request'
 
 const PAGE_SIZE = 10
@@ -26,6 +28,7 @@ type SelectedCatalogAction = {
   product: CatalogProduct
   variant?: CatalogVariant
   requestedAction: RequestedCatalogAction
+  quantity?: number
 }
 
 function getEligibleVariants(item: { product: CatalogProduct; variant?: CatalogVariant }, requestedAction: RequestedCatalogAction) {
@@ -35,11 +38,7 @@ function getEligibleVariants(item: { product: CatalogProduct; variant?: CatalogV
     return variants.filter((variant) => !variant.ativo)
   }
 
-  if (requestedAction === 'inativar') {
-    return variants.filter((variant) => Boolean(variant.ativo))
-  }
-
-  return variants
+  return variants.filter((variant) => Boolean(variant.ativo))
 }
 
 function getBlockedActionMessage(item: { product: CatalogProduct; variant?: CatalogVariant }, requestedAction: RequestedCatalogAction) {
@@ -49,11 +48,34 @@ function getBlockedActionMessage(item: { product: CatalogProduct; variant?: Cata
     return isVariantAction ? 'A variacao selecionada ja esta ativa.' : 'Nao existem variacoes inativas para ativar neste produto.'
   }
 
-  if (requestedAction === 'inativar') {
-    return isVariantAction ? 'A variacao selecionada ja esta inativa.' : 'Nao existem variacoes ativas para inativar neste produto.'
+  return isVariantAction ? 'A variacao selecionada ja esta inativa.' : 'Nao existem variacoes ativas para inativar neste produto.'
+}
+
+function deriveProductStatus(product: CatalogProduct): CatalogProduct {
+  const totalVariants = product.variacoes.length
+
+  if (totalVariants === 0) {
+    return {
+      ...product,
+      ativo: product.ativo,
+      status: product.ativo ? 'ativo' : 'inativo',
+      activeVariantCount: product.ativo ? 1 : 0,
+      inactiveVariantCount: product.ativo ? 0 : 1,
+    }
   }
 
-  return item.product.variacoes.length === 0 ? 'Este produto nao possui variacoes cadastradas para selecionar.' : ''
+  const activeVariantCount = product.variacoes.filter((variant) => Boolean(variant.ativo)).length
+  const inactiveVariantCount = totalVariants - activeVariantCount
+  const status: CatalogProduct['status'] =
+    activeVariantCount === 0 ? 'inativo' : inactiveVariantCount === 0 ? 'ativo' : 'parcial'
+
+  return {
+    ...product,
+    ativo: status !== 'inativo',
+    status,
+    activeVariantCount,
+    inactiveVariantCount,
+  }
 }
 
 export default function CatalogoPage() {
@@ -66,9 +88,12 @@ export default function CatalogoPage() {
   const [expandedIds, setExpandedIds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [refreshNonce, setRefreshNonce] = useState(0)
   const [selectedItem, setSelectedItem] = useState<SelectedCatalogAction | null>(null)
   const [fornecedorFilter, setFornecedorFilter] = useState('todos')
+  const [statusFilter, setStatusFilter] = useState<CatalogStatusFilter>('todos')
+  const [queuedCount, setQueuedCount] = useState(0)
+  const [alertMessage, setAlertMessage] = useState('')
+  const [loggingOut, setLoggingOut] = useState(false)
 
   useEffect(() => {
     async function loadSession() {
@@ -108,6 +133,7 @@ export default function CatalogoPage() {
         const params = new URLSearchParams()
         params.set('page', String(currentPage))
         params.set('pageSize', String(PAGE_SIZE))
+        params.set('status', statusFilter)
 
         if (search.trim()) {
           params.set('termo', search.trim())
@@ -153,12 +179,25 @@ export default function CatalogoPage() {
       controller.abort()
       window.clearTimeout(timeout)
     }
-  }, [account, currentPage, fornecedorFilter, refreshNonce, search])
+  }, [account, currentPage, fornecedorFilter, router, search, statusFilter])
 
   const summary = useMemo(() => {
     const variants = products.reduce((total, product) => total + product.variacoes.length, 0)
-    return { products: products.length, variants, totalProducts: pagination.total }
+    const inactiveVariants = products.reduce((total, product) => total + (product.inactiveVariantCount ?? 0), 0)
+    return { products: products.length, variants, inactiveVariants, totalProducts: pagination.total }
   }, [pagination.total, products])
+
+  const accountScopeLabel = useMemo(() => {
+    if (!account) {
+      return 'Carregando...'
+    }
+
+    if (account.role === 'admin') {
+      return 'Todas as lojas'
+    }
+
+    return account.access.lojas[0] || account.access.clienteCods[0] || 'Minha loja'
+  }, [account])
 
   const fornecedorOptions = useMemo(() => {
     if (!account || account.access.scopeType !== 'fornecedor_prefix') {
@@ -191,10 +230,17 @@ export default function CatalogoPage() {
   function handleOpenAction(input: SelectedCatalogAction) {
     const eligibleVariants = getEligibleVariants(input, input.requestedAction)
 
-    if (input.requestedAction !== 'alteracao_especifica' && eligibleVariants.length === 0) {
+    if (eligibleVariants.length === 0) {
       const message = getBlockedActionMessage(input, input.requestedAction)
       setError(message)
-      window.alert(message)
+      setAlertMessage(message)
+      return
+    }
+
+    if (input.requestedAction === 'ativar' && (!input.quantity || input.quantity <= 0)) {
+      const message = 'Preencha a quantidade antes de ativar.'
+      setError(message)
+      setAlertMessage(message)
       return
     }
 
@@ -202,12 +248,43 @@ export default function CatalogoPage() {
     setSelectedItem(input)
   }
 
+  function handleActionCreated(result: CompletedCatalogAction) {
+    setProducts((currentProducts) =>
+      currentProducts.map((product) => {
+        if (product.skuBase !== result.skuBase) {
+          return product
+        }
+
+        return deriveProductStatus({
+          ...product,
+          variacoes: product.variacoes.map((variant) =>
+            result.updatedVariantSkus.includes(variant.sku)
+              ? {
+                  ...variant,
+                  ativo: result.nextActive,
+                  status: result.nextActive ? 'ativo' : 'inativo',
+                }
+              : variant,
+          ),
+        })
+      }),
+    )
+    setQueuedCount((current) => current + 1)
+    setSelectedItem(null)
+  }
+
   async function handleLogout() {
-    await fetch('/api/auth/logout', {
-      method: 'POST',
-    })
-    router.replace('/login')
-    router.refresh()
+    setLoggingOut(true)
+
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+      })
+      router.replace('/login')
+      router.refresh()
+    } finally {
+      setLoggingOut(false)
+    }
   }
 
   return (
@@ -217,16 +294,14 @@ export default function CatalogoPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Painel operacional</p>
             <h1 className="mt-3 font-display text-2xl font-semibold text-ink sm:text-3xl lg:text-4xl">
-              Catalogo autenticado por conta com acesso recortado pela operacao
+              Catalogo {accountScopeLabel}
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-steel sm:text-base">
-              Sessao atual: <span className="font-semibold text-ink">{account?.nome ?? 'Carregando...'}</span>
+              {account?.nome ?? 'Carregando...'}
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-steel sm:text-sm">
-              <span className="brand-chip rounded-full px-3 py-1">Perfil: {account?.role ?? '-'}</span>
-              <span className="brand-chip rounded-full px-3 py-1">
-                Escopo: {account?.role === 'admin' ? 'Todos os produtos' : account?.access.lojas.join(', ') || '-'}
-              </span>
+              <span className="brand-chip rounded-full px-3 py-1">{account?.role === 'admin' ? 'Admin' : 'Cliente'}</span>
+              <span className="brand-chip rounded-full px-3 py-1">Fila: {queuedCount}</span>
             </div>
           </div>
           <div className="grid gap-3 sm:flex sm:flex-wrap">
@@ -252,8 +327,24 @@ export default function CatalogoPage() {
           </div>
         </div>
 
-        <div className={`mt-8 grid gap-4 ${fornecedorOptions.length > 0 ? 'lg:grid-cols-[2fr_1fr_1fr]' : 'lg:grid-cols-[2fr_1fr]'}`}>
-          <SearchBar value={search} onChange={handleSearchChange} />
+        <div className={`mt-8 grid gap-4 ${fornecedorOptions.length > 0 ? 'xl:grid-cols-[2fr_1fr_1fr_1fr]' : 'xl:grid-cols-[2fr_1fr_1fr]'}`}>
+          <SearchBar value={search} onChange={handleSearchChange} placeholder="Buscar por nome ou SKU" />
+          <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
+            Status
+            <select
+              value={statusFilter}
+              onChange={(event) => {
+                setStatusFilter(event.target.value as CatalogStatusFilter)
+                setCurrentPage(1)
+              }}
+              className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+            >
+              <option value="todos" className="bg-slate text-ink">Todos</option>
+              <option value="ativos" className="bg-slate text-ink">Somente ativos</option>
+              <option value="inativos" className="bg-slate text-ink">Somente inativos</option>
+              <option value="com_inativas" className="bg-slate text-ink">Com variacoes inativas</option>
+            </select>
+          </label>
           {fornecedorOptions.length > 0 ? (
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
               Fornecedor
@@ -275,11 +366,12 @@ export default function CatalogoPage() {
             </label>
           ) : null}
           <div className="brand-chip rounded-3xl p-4 text-sm text-steel">
-            <p className="font-semibold uppercase tracking-[0.16em] text-ink">Resumo atual</p>
+            <p className="font-semibold uppercase tracking-[0.16em] text-ink">Resumo</p>
             <p className="mt-2">
-              Exibindo <span className="text-ink">{summary.products}</span> de <span className="text-ink">{summary.totalProducts}</span> produtos
+              {summary.products} de {summary.totalProducts} produtos
             </p>
-            <p>{summary.variants} variacoes nesta pagina</p>
+            <p>{summary.variants} variacoes na pagina</p>
+            <p>{summary.inactiveVariants} inativas</p>
           </div>
         </div>
       </section>
@@ -287,7 +379,7 @@ export default function CatalogoPage() {
       <section className="mt-6">
         {error ? <div className="mb-4 rounded-2xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-clay">{error}</div> : null}
         {loading ? (
-          <div className="panel rounded-3xl p-6 text-sm text-steel">Carregando catalogo autenticado...</div>
+          <div className="panel rounded-3xl p-6 text-sm text-steel">Carregando catalogo...</div>
         ) : (
           <ProductTable products={products} expandedIds={expandedIds} onToggle={toggleExpanded} onAction={handleOpenAction} />
         )}
@@ -304,11 +396,10 @@ export default function CatalogoPage() {
         operator={account}
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
-        onCreated={() => {
-          setSelectedItem(null)
-          setRefreshNonce((current) => current + 1)
-        }}
+        onCreated={handleActionCreated}
       />
+      <AlertModal open={Boolean(alertMessage)} message={alertMessage} onClose={() => setAlertMessage('')} />
+      <LoadingOverlay open={loading || loggingOut} label={loggingOut ? 'Saindo da conta...' : 'Carregando dados...'} />
     </main>
   )
 }

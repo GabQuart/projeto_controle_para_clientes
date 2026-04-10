@@ -1,16 +1,17 @@
-import { appendSheetRow, getSpreadsheetSheetTitles, readSheetTab, updateRowsByLookup, updateSheetRow } from '@/lib/google/sheets'
+import { appendSheetRow, getSpreadsheetSheetTitles, readSheetTab, updateSheetRow } from '@/lib/google/sheets'
 import { validateActiveAccount } from '@/lib/services/account.service'
 import { getCatalogSnapshotItem, updateCatalogVariantStatuses } from '@/lib/services/catalog.service'
-import { compactText, normalizeText } from '@/lib/utils/format'
+import { compactText, normalizeText, toBooleanFlag } from '@/lib/utils/format'
 import { createSimpleId } from '@/lib/utils/id'
 import { normalizeSku } from '@/lib/utils/sku'
+import { createAdminClient } from '@/utils/supabase/admin'
 import type { BulkCreateRequestInput, ChangeRequest, ChangeRequestFilters, RequestedVariantStock } from '@/types/request'
 import type { CatalogVariant } from '@/types/catalog'
 import type { UserAccount } from '@/types/account'
 
 const OUTPUT_SHEET_ID = process.env.GOOGLE_OUTPUT_SHEET_ID ?? ''
-const SOURCE_SHEET_ID = process.env.GOOGLE_SOURCE_SHEET_ID ?? ''
-const SOURCE_VARIANT_SHEET = 'VARIACOES_SKU'
+const PRODUCT_TABLE = 'catalogo_produtos'
+const VARIANT_TABLE = 'variacoes_sku'
 const REQUEST_HEADERS = [
   'id',
   'loteId',
@@ -32,6 +33,21 @@ const REQUEST_HEADERS = [
   'estoqueGeral',
   'estoquePorVariacao',
 ] as const
+
+const VALID_REQUEST_TYPES = new Set<ChangeRequest['tipoAlteracao']>([
+  'ativar_produto',
+  'inativar_produto',
+  'ativar_variacao',
+  'inativar_variacao',
+  'alteracao_especifica',
+])
+
+const VALID_REQUEST_STATUSES = new Set<ChangeRequest['status']>([
+  'nao_concluido',
+  'em_andamento',
+  'concluido',
+  'cancelado',
+])
 
 let cachedOutputSheetName = ''
 
@@ -72,7 +88,7 @@ async function ensureRequestSheetHeaders() {
 }
 
 function validateRequestPayload(payload: Partial<ChangeRequest>) {
-  const requiredFields = ['operadorEmail', 'skuBase', 'tipoAlteracao', 'detalhe'] as const
+  const requiredFields = ['operadorEmail', 'skuBase', 'tipoAlteracao'] as const
   const missing = requiredFields.filter((field) => !compactText(String(payload[field] ?? '')))
 
   if (missing.length > 0) {
@@ -88,7 +104,7 @@ function parseOptionalNumber(value: unknown) {
   const parsed = Number(value)
 
   if (!Number.isFinite(parsed) || parsed < 0) {
-    throw new Error('Informe um estoque geral valido para concluir a ativacao.')
+    throw new Error('Informe uma quantidade valida para ativacao.')
   }
 
   return parsed
@@ -117,6 +133,32 @@ function parseJsonArray<T>(value?: string) {
   } catch {
     return undefined
   }
+}
+
+function sanitizeImageReference(value?: string) {
+  const normalized = compactText(value ?? '')
+
+  if (!normalized) {
+    return ''
+  }
+
+  if (normalized.startsWith('/')) {
+    return normalized
+  }
+
+  if (/^https?:\/\//i.test(normalized)) {
+    return normalized
+  }
+
+  return ''
+}
+
+function isValidRequestType(value?: string): value is ChangeRequest['tipoAlteracao'] {
+  return VALID_REQUEST_TYPES.has(value as ChangeRequest['tipoAlteracao'])
+}
+
+function isValidRequestStatus(value?: string): value is ChangeRequest['status'] {
+  return VALID_REQUEST_STATUSES.has(value as ChangeRequest['status'])
 }
 
 function buildRequestRow(request: ChangeRequest) {
@@ -212,24 +254,60 @@ function buildStockByVariant(variants: CatalogVariant[], estoqueGeral?: number):
   }))
 }
 
-async function applySourceStatusUpdate(variants: CatalogVariant[], activeValue: 'SIM' | 'NAO') {
-  if (!SOURCE_SHEET_ID) {
-    throw new Error('GOOGLE_SOURCE_SHEET_ID nao configurado')
+function buildActionDetail(input: {
+  tipoAlteracao: ChangeRequest['tipoAlteracao']
+  titulo: string
+  variacoesSelecionadas: string[]
+  estoqueGeral?: number
+  detalhe?: string
+}) {
+  const customDetail = compactText(input.detalhe ?? '')
+
+  if (customDetail) {
+    return customDetail
   }
 
-  await updateRowsByLookup(
-    SOURCE_SHEET_ID,
-    SOURCE_VARIANT_SHEET,
-    'sku',
-    variants.map((variant) => ({
-      key: variant.sku,
-      values: {
-        ativo: activeValue,
-      },
-    })),
-  )
+  if (input.tipoAlteracao === 'ativar_produto' || input.tipoAlteracao === 'ativar_variacao') {
+    return `Ativacao solicitada para ${input.variacoesSelecionadas.length} variacao(oes) do produto ${input.titulo} com quantidade ${input.estoqueGeral ?? 0}.`
+  }
 
-  await updateCatalogVariantStatuses(Object.fromEntries(variants.map((variant) => [variant.sku, activeValue === 'SIM'])))
+  return `Inativacao solicitada para ${input.variacoesSelecionadas.length} variacao(oes) do produto ${input.titulo}.`
+}
+
+async function syncSupabaseStatuses(skuBase: string, variants: CatalogVariant[], nextActive: boolean) {
+  const supabase = createAdminClient()
+  const nextVariantStatus = nextActive ? 'SIM' : 'NAO'
+
+  if (variants.length > 0) {
+    const { error: variantError } = await supabase
+      .from(VARIANT_TABLE)
+      .update({ status: nextVariantStatus })
+      .in('sku', variants.map((variant) => variant.sku))
+
+    if (variantError) {
+      throw new Error(`Falha ao atualizar variacoes no Supabase: ${variantError.message}`)
+    }
+  }
+
+  const { data: currentVariants, error: readError } = await supabase
+    .from(VARIANT_TABLE)
+    .select('sku,status')
+    .eq('sku_base', skuBase)
+
+  if (readError) {
+    throw new Error(`Falha ao recalcular status do produto no Supabase: ${readError.message}`)
+  }
+
+  const hasActiveVariant = (currentVariants ?? []).some((variant) => toBooleanFlag(variant.status))
+  const nextProductStatus = hasActiveVariant ? 'ATIVO' : 'INATIVO'
+
+  const { error: productError } = await supabase.from(PRODUCT_TABLE).update({ status: nextProductStatus }).eq('sku_base', skuBase)
+
+  if (productError) {
+    throw new Error(`Falha ao atualizar produto no Supabase: ${productError.message}`)
+  }
+
+  await updateCatalogVariantStatuses(Object.fromEntries(variants.map((variant) => [variant.sku, nextActive])))
 }
 
 async function createRequestInternal(
@@ -259,7 +337,7 @@ async function createRequestInternal(
       : undefined
 
   if ((tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao') && estoqueGeral === undefined) {
-    throw new Error('Preencha o estoque geral para concluir a ativacao.')
+    throw new Error('Preencha a quantidade para concluir a ativacao.')
   }
 
   if (
@@ -272,12 +350,16 @@ async function createRequestInternal(
     throw new Error(getAlreadyInExpectedStateMessage(tipoAlteracao, Boolean(snapshot.variant)))
   }
 
-  const variacoesSelecionadas =
-    tipoAlteracao === 'alteracao_especifica'
-      ? scopedVariants.map((variant) => variant.sku)
-      : eligibleVariants.map((variant) => variant.sku)
-
+  const variacoesSelecionadas = eligibleVariants.map((variant) => variant.sku)
   const estoquePorVariacao = buildStockByVariant(eligibleVariants, estoqueGeral)
+  const detalhe = buildActionDetail({
+    tipoAlteracao,
+    titulo: snapshot.product.titulo,
+    variacoesSelecionadas,
+    estoqueGeral,
+    detalhe: payload.detalhe,
+  })
+
   const request: ChangeRequest = {
     id: createSimpleId('solicitacao'),
     loteId: options.loteId,
@@ -291,7 +373,7 @@ async function createRequestInternal(
     titulo: snapshot.product.titulo,
     fotoRef: snapshot.product.fotoRef,
     tipoAlteracao,
-    detalhe: compactText(payload.detalhe),
+    detalhe,
     status: 'nao_concluido',
     responsavelInterno: payload.responsavelInterno,
     dataConclusao: payload.dataConclusao,
@@ -301,33 +383,15 @@ async function createRequestInternal(
   }
 
   if (tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao') {
-    await applySourceStatusUpdate(eligibleVariants, 'SIM')
+    await syncSupabaseStatuses(snapshot.product.skuBase, eligibleVariants, true)
   }
 
   if (tipoAlteracao === 'inativar_produto' || tipoAlteracao === 'inativar_variacao') {
-    await applySourceStatusUpdate(eligibleVariants, 'NAO')
+    await syncSupabaseStatuses(snapshot.product.skuBase, eligibleVariants, false)
   }
 
   const sheetName = await ensureRequestSheetHeaders()
-
-  try {
-    await appendSheetRow(OUTPUT_SHEET_ID, sheetName, buildRequestRow(request))
-  } catch (error) {
-    if (
-      tipoAlteracao === 'ativar_produto' ||
-      tipoAlteracao === 'ativar_variacao' ||
-      tipoAlteracao === 'inativar_produto' ||
-      tipoAlteracao === 'inativar_variacao'
-    ) {
-      throw new Error(
-        `A planilha principal foi atualizada, mas nao foi possivel registrar o historico: ${
-          error instanceof Error ? error.message : 'falha desconhecida'
-        }`,
-      )
-    }
-
-    throw error
-  }
+  await appendSheetRow(OUTPUT_SHEET_ID, sheetName, buildRequestRow(request))
 
   return request
 }
@@ -385,28 +449,37 @@ export async function listRequests(filters: ChangeRequestFilters = {}) {
   const rows = await readSheetTab(OUTPUT_SHEET_ID, sheetName)
 
   return rows
-    .map<ChangeRequest>((row) => ({
-      id: row.id ?? '',
-      loteId: row.loteId ?? '',
-      dataAbertura: row.dataAbertura ?? '',
-      operadorEmail: row.operadorEmail ?? '',
-      operadorNome: row.operadorNome ?? '',
-      clienteCod: row.clienteCod ?? '',
-      loja: row.loja ?? '',
-      skuBase: row.skuBase ?? '',
-      skuVariacao: row.skuVariacao ?? '',
-      titulo: row.titulo ?? '',
-      fotoRef: row.fotoRef ?? '',
-      tipoAlteracao: (row.tipoAlteracao as ChangeRequest['tipoAlteracao']) ?? 'alteracao_especifica',
-      detalhe: row.detalhe ?? '',
-      status: (row.status as ChangeRequest['status']) ?? 'nao_concluido',
-      responsavelInterno: row.responsavelInterno ?? '',
-      dataConclusao: row.dataConclusao ?? '',
-      variacoesSelecionadas: parseJsonArray<string>(row.variacoesSelecionadas),
-      estoqueGeral: row.estoqueGeral ? Number(row.estoqueGeral) : undefined,
-      estoquePorVariacao: parseJsonArray<RequestedVariantStock>(row.estoquePorVariacao),
-    }))
-    .filter((request) => request.id)
+    .map<ChangeRequest | null>((row) => {
+      const tipoAlteracao = compactText(row.tipoAlteracao ?? '')
+      const status = compactText(row.status ?? '')
+
+      if (!row.id || !isValidRequestType(tipoAlteracao) || !isValidRequestStatus(status)) {
+        return null
+      }
+
+      return {
+        id: row.id ?? '',
+        loteId: row.loteId ?? '',
+        dataAbertura: row.dataAbertura ?? '',
+        operadorEmail: row.operadorEmail ?? '',
+        operadorNome: row.operadorNome ?? '',
+        clienteCod: row.clienteCod ?? '',
+        loja: row.loja ?? '',
+        skuBase: row.skuBase ?? '',
+        skuVariacao: row.skuVariacao ?? '',
+        titulo: row.titulo ?? '',
+        fotoRef: sanitizeImageReference(row.fotoRef),
+        tipoAlteracao,
+        detalhe: row.detalhe ?? '',
+        status,
+        responsavelInterno: row.responsavelInterno ?? '',
+        dataConclusao: row.dataConclusao ?? '',
+        variacoesSelecionadas: parseJsonArray<string>(row.variacoesSelecionadas),
+        estoqueGeral: row.estoqueGeral ? Number(row.estoqueGeral) : undefined,
+        estoquePorVariacao: parseJsonArray<RequestedVariantStock>(row.estoquePorVariacao),
+      }
+    })
+    .filter((request): request is ChangeRequest => Boolean(request?.id))
     .filter((request) => matchesFilters(request, filters))
     .sort((a, b) => new Date(b.dataAbertura).getTime() - new Date(a.dataAbertura).getTime())
 }

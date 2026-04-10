@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { filterCatalogProductsForAccount, getAuthenticatedAccount } from '@/lib/services/account.service'
 import { enrichCatalogProductImages, getCatalogCacheMetadata, listCatalog } from '@/lib/services/catalog.service'
+import type { CatalogStatusFilter } from '@/types/catalog'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,7 @@ export async function GET(request: Request) {
     const clienteCod = searchParams.get('clienteCod') ?? undefined
     const loja = searchParams.get('loja') ?? undefined
     const fornecedor = searchParams.get('fornecedor') ?? undefined
+    const statusFilter = (searchParams.get('status') as CatalogStatusFilter | null) ?? undefined
     const termo = searchParams.get('termo') ?? undefined
     const forceRefresh = parseBoolean(searchParams.get('refresh'))
     const page = parsePositiveInt(searchParams.get('page'), 1)
@@ -39,7 +41,7 @@ export async function GET(request: Request) {
     }
 
     const [data, cache] = await Promise.all([
-      listCatalog({ termo, forceRefresh }),
+      listCatalog({ termo, forceRefresh, statusFilter }),
       getCatalogCacheMetadata({ forceRefresh }),
     ])
     const scopedData = account ? filterCatalogProductsForAccount(account, data) : data

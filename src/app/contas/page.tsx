@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 import type { AccountDirectoryEntry, UserAccount } from '@/types/account'
 
 type FormState = {
@@ -453,6 +454,10 @@ export default function ContasPage() {
           )}
         </section>
       </section>
+      <LoadingOverlay
+        open={loading || saving || syncingDirectory}
+        label={saving ? 'Salvando conta...' : syncingDirectory ? 'Sincronizando diretorio...' : 'Carregando dados...'}
+      />
     </main>
   )
 }

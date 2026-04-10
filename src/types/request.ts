@@ -1,4 +1,4 @@
-﻿export type ChangeRequestStatus = 'nao_concluido' | 'em_andamento' | 'concluido' | 'cancelado'
+export type ChangeRequestStatus = 'nao_concluido' | 'em_andamento' | 'concluido' | 'cancelado'
 
 export type ChangeRequestType =
   | 'ativar_produto'
@@ -7,7 +7,7 @@ export type ChangeRequestType =
   | 'inativar_variacao'
   | 'alteracao_especifica'
 
-export type RequestedCatalogAction = 'ativar' | 'inativar' | 'alteracao_especifica'
+export type RequestedCatalogAction = 'ativar' | 'inativar'
 
 export type RequestedVariantStock = {
   sku: string
