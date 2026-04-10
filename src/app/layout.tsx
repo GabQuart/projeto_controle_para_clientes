@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
 import { Oxanium, Sora } from 'next/font/google'
+import { getAuthenticatedAccount } from '@/lib/services/account.service'
 import './globals.css'
 
 const sora = Sora({
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   {
     href: '/login',
     label: 'Login',
+    adminOnly: false,
     icon: (
       <path
         d="M12 3a4 4 0 110 8 4 4 0 010-8zm0 10c4.418 0 8 2.015 8 4.5V20H4v-2.5C4 15.015 7.582 13 12 13z"
@@ -39,6 +41,7 @@ const NAV_ITEMS = [
   {
     href: '/catalogo',
     label: 'Catalogo',
+    adminOnly: false,
     icon: (
       <path
         d="M5 5.5A1.5 1.5 0 016.5 4H19v14.5a1.5 1.5 0 01-1.5 1.5H6.5A1.5 1.5 0 015 18.5v-13zm2 1v11h10V6.5H7zm1.5 2h7v1.5h-7V8.5zm0 3h7v1.5h-7V11.5z"
@@ -49,6 +52,7 @@ const NAV_ITEMS = [
   {
     href: '/historico',
     label: 'Historico',
+    adminOnly: false,
     icon: (
       <path
         d="M12 4a8 8 0 108 8h-2a6 6 0 11-1.757-4.243L14 10h6V4l-2.343 2.343A7.965 7.965 0 0012 4zm-.75 4h1.5v4.25l3 1.75-.75 1.299-3.75-2.174V8z"
@@ -59,6 +63,7 @@ const NAV_ITEMS = [
   {
     href: '/contas',
     label: 'Contas',
+    adminOnly: true,
     icon: (
       <path
         d="M6 5.5A2.5 2.5 0 018.5 3h7A2.5 2.5 0 0118 5.5v13a2.5 2.5 0 01-2.5 2.5h-7A2.5 2.5 0 016 18.5v-13zm2 0v13h7v-13h-7zm1.5 2h4v1.5h-4V7.5zm0 3h4v1.5h-4v-1.5zm0 3h2.75V15H9.5v-1.5z"
@@ -68,7 +73,10 @@ const NAV_ITEMS = [
   },
 ]
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const account = await getAuthenticatedAccount().catch(() => null)
+  const visibleNavItems = NAV_ITEMS.filter((item) => !item.adminOnly || account?.role === 'admin')
+
   return (
     <html lang="pt-BR">
       <body className={`${sora.variable} ${oxanium.variable} font-sans`}>
@@ -98,7 +106,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
                 </div>
 
                 <nav className="brand-scrollbar -mx-1 flex w-full gap-2 overflow-x-auto px-1 pb-1 text-sm font-medium text-steel lg:mx-0 lg:w-auto lg:flex-wrap lg:justify-end lg:overflow-visible lg:px-0 lg:pb-0">
-                  {NAV_ITEMS.map((item) => (
+                  {visibleNavItems.map((item) => (
                     <Link
                       key={item.href}
                       href={item.href}
