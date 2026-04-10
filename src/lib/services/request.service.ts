@@ -1,11 +1,19 @@
 import { appendSheetRow, getSpreadsheetSheetTitles, readSheetTab, updateSheetRow } from '@/lib/google/sheets'
 import { validateActiveAccount } from '@/lib/services/account.service'
 import { getCatalogSnapshotItem, updateCatalogVariantStatuses } from '@/lib/services/catalog.service'
+import { listProductRequestHistory } from '@/lib/services/product-request.service'
 import { compactText, normalizeText, toBooleanFlag } from '@/lib/utils/format'
 import { createSimpleId } from '@/lib/utils/id'
 import { normalizeSku } from '@/lib/utils/sku'
 import { createAdminClient } from '@/utils/supabase/admin'
-import type { BulkCreateRequestInput, ChangeRequest, ChangeRequestFilters, RequestedVariantStock } from '@/types/request'
+import type {
+  BulkCreateRequestInput,
+  ChangeRequest,
+  ChangeRequestFilters,
+  RequestHistoryEntry,
+  RequestHistoryType,
+  RequestedVariantStock,
+} from '@/types/request'
 import type { CatalogVariant } from '@/types/catalog'
 import type { UserAccount } from '@/types/account'
 
@@ -32,6 +40,9 @@ const REQUEST_HEADERS = [
   'variacoesSelecionadas',
   'estoqueGeral',
   'estoquePorVariacao',
+  'enviadoTrello',
+  'trelloCardId',
+  'tipo_solicitacao',
 ] as const
 
 const VALID_REQUEST_TYPES = new Set<ChangeRequest['tipoAlteracao']>([
@@ -161,6 +172,18 @@ function isValidRequestStatus(value?: string): value is ChangeRequest['status'] 
   return VALID_REQUEST_STATUSES.has(value as ChangeRequest['status'])
 }
 
+function formatRequestLabel(tipoAlteracao: ChangeRequest['tipoAlteracao']) {
+  if (tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao') {
+    return 'Ativacao'
+  }
+
+  if (tipoAlteracao === 'inativar_produto' || tipoAlteracao === 'inativar_variacao') {
+    return 'Inativacao'
+  }
+
+  return tipoAlteracao.replaceAll('_', ' ')
+}
+
 function buildRequestRow(request: ChangeRequest) {
   return REQUEST_HEADERS.map((header) => {
     switch (header) {
@@ -170,14 +193,24 @@ function buildRequestRow(request: ChangeRequest) {
         return serializeJson(request.estoquePorVariacao)
       case 'estoqueGeral':
         return request.estoqueGeral === undefined ? '' : String(request.estoqueGeral)
+      case 'enviadoTrello':
+        return ''
+      case 'trelloCardId':
+        return ''
+      case 'tipo_solicitacao':
+        return request.tipoSolicitacao ?? 'operacional'
       default:
-        return String(request[header] ?? '')
+        return String(request[header as keyof ChangeRequest] ?? '')
     }
   })
 }
 
-function matchesFilters(request: ChangeRequest, filters: ChangeRequestFilters) {
+function matchesFilters(request: RequestHistoryEntry, filters: ChangeRequestFilters) {
   if (filters.status && request.status !== filters.status) {
+    return false
+  }
+
+  if (filters.tipoSolicitacao && request.tipoSolicitacao !== filters.tipoSolicitacao) {
     return false
   }
 
@@ -191,7 +224,7 @@ function matchesFilters(request: ChangeRequest, filters: ChangeRequestFilters) {
 
   if (filters.sku) {
     const normalized = normalizeSku(filters.sku)
-    const target = [request.skuBase, request.skuVariacao, ...(request.variacoesSelecionadas ?? [])].map((item) => normalizeSku(item))
+    const target = [request.skuBase, request.skuVariacao, ...(request.variacoesSelecionadas ?? []), request.id].map((item) => normalizeSku(item))
 
     if (!target.some((item) => item.includes(normalized))) {
       return false
@@ -380,6 +413,7 @@ async function createRequestInternal(
     variacoesSelecionadas,
     estoqueGeral,
     estoquePorVariacao,
+    tipoSolicitacao: 'operacional',
   }
 
   if (tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao') {
@@ -448,10 +482,11 @@ export async function listRequests(filters: ChangeRequestFilters = {}) {
   const sheetName = await ensureRequestSheetHeaders()
   const rows = await readSheetTab(OUTPUT_SHEET_ID, sheetName)
 
-  return rows
-    .map<ChangeRequest | null>((row) => {
+  const operationalRequests = rows
+    .map<RequestHistoryEntry | null>((row) => {
       const tipoAlteracao = compactText(row.tipoAlteracao ?? '')
       const status = compactText(row.status ?? '')
+      const tipoSolicitacao = compactText(row.tipo_solicitacao ?? '') as RequestHistoryType
 
       if (!row.id || !isValidRequestType(tipoAlteracao) || !isValidRequestStatus(status)) {
         return null
@@ -471,15 +506,22 @@ export async function listRequests(filters: ChangeRequestFilters = {}) {
         fotoRef: sanitizeImageReference(row.fotoRef),
         tipoAlteracao,
         detalhe: row.detalhe ?? '',
-        status,
+        status: status as RequestHistoryEntry['status'],
         responsavelInterno: row.responsavelInterno ?? '',
         dataConclusao: row.dataConclusao ?? '',
         variacoesSelecionadas: parseJsonArray<string>(row.variacoesSelecionadas),
         estoqueGeral: row.estoqueGeral ? Number(row.estoqueGeral) : undefined,
         estoquePorVariacao: parseJsonArray<RequestedVariantStock>(row.estoquePorVariacao),
+        tipoSolicitacao: tipoSolicitacao === 'novo_produto' ? 'novo_produto' : 'operacional',
+        requestLabel: formatRequestLabel(tipoAlteracao),
       }
     })
-    .filter((request): request is ChangeRequest => Boolean(request?.id))
+    .filter((request): request is RequestHistoryEntry => Boolean(request?.id))
+    .filter((request) => matchesFilters(request, filters))
+
+  const productRequests = await listProductRequestHistory(filters)
+
+  return [...operationalRequests, ...productRequests]
     .filter((request) => matchesFilters(request, filters))
     .sort((a, b) => new Date(b.dataAbertura).getTime() - new Date(a.dataAbertura).getTime())
 }

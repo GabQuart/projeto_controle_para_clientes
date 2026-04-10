@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ActionModal, type CompletedCatalogAction } from '@/components/ActionModal'
 import { AlertModal } from '@/components/AlertModal'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
+import { NewProductRequestModal } from '@/components/NewProductRequestModal'
 import { PaginationControls } from '@/components/PaginationControls'
 import { ProductTable } from '@/components/ProductTable'
 import { SearchBar } from '@/components/SearchBar'
@@ -94,6 +95,7 @@ export default function CatalogoPage() {
   const [queuedCount, setQueuedCount] = useState(0)
   const [alertMessage, setAlertMessage] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
+  const [newProductRequestOpen, setNewProductRequestOpen] = useState(false)
 
   useEffect(() => {
     async function loadSession() {
@@ -305,18 +307,27 @@ export default function CatalogoPage() {
             </div>
           </div>
           <div className="grid gap-3 sm:flex sm:flex-wrap">
+            <button
+              type="button"
+              onClick={() => setNewProductRequestOpen(true)}
+              className="rounded-full bg-amber px-4 py-3 text-center text-sm font-semibold text-night transition hover:bg-[#ffd77a]"
+            >
+              Adicionar produto
+            </button>
             <Link
               href="/historico"
               className="brand-chip rounded-full px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
             >
               Ver historico
             </Link>
-            <Link
-              href="/contas"
-              className="brand-chip rounded-full px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
-            >
-              Gerenciar contas
-            </Link>
+            {account?.role === 'admin' ? (
+              <Link
+                href="/contas"
+                className="brand-chip rounded-full px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
+              >
+                Gerenciar contas
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={handleLogout}
@@ -397,6 +408,13 @@ export default function CatalogoPage() {
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
         onCreated={handleActionCreated}
+      />
+      <NewProductRequestModal
+        open={newProductRequestOpen}
+        account={account}
+        onClose={() => setNewProductRequestOpen(false)}
+        onCreated={() => setQueuedCount((current) => current + 1)}
+        onSuccessMessage={(message) => setAlertMessage(message)}
       />
       <AlertModal open={Boolean(alertMessage)} message={alertMessage} onClose={() => setAlertMessage('')} />
       <LoadingOverlay open={loading || loggingOut} label={loggingOut ? 'Saindo da conta...' : 'Carregando dados...'} />

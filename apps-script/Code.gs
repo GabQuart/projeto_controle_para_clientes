@@ -25,6 +25,10 @@ function handleRequest_(method, e) {
         return ok_(resolveDriveImage_(params.linkOrId))
       case 'resolveDriveImageGallery':
         return ok_(resolveDriveImageGallery_(params.linkOrId, params.limit))
+      case 'resolveRequestFolderImage':
+        return ok_(resolveRequestFolderImage_(params.parentFolderId, params.requestId, params.rootFolderName))
+      case 'uploadFilesToRequestFolder':
+        return ok_(uploadFilesToRequestFolder_(body.parentFolderId, body.requestId, body.files, body.rootFolderName))
       case 'appendSheetRow':
         appendSheetRow_(body.spreadsheetId, body.sheetName, body.values)
         return ok_(null)
@@ -488,4 +492,108 @@ function buildDriveFileViewUrl_(fileId) {
 
 function buildDriveThumbnailUrl_(fileId) {
   return 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1200'
+}
+
+function uploadFilesToRequestFolder_(parentFolderId, requestId, files, rootFolderName) {
+  var normalizedRequestId = String(requestId || '').trim()
+
+  if (!parentFolderId) {
+    throw new Error('Pasta pai nao informada para upload das solicitacoes')
+  }
+
+  if (!normalizedRequestId) {
+    throw new Error('ID da solicitacao nao informado para upload')
+  }
+
+  var parentFolder = DriveApp.getFolderById(parentFolderId)
+  var requestsRootFolder = getOrCreateChildFolder_(parentFolder, String(rootFolderName || 'solicitacoes_produto').trim() || 'solicitacoes_produto')
+  var requestFolder = getOrCreateChildFolder_(requestsRootFolder, normalizedRequestId)
+  var uploadedFiles = []
+  var inputFiles = Array.isArray(files) ? files : []
+
+  for (var index = 0; index < inputFiles.length; index += 1) {
+    var item = inputFiles[index]
+
+    if (!item || !item.base64Content) {
+      continue
+    }
+
+    var safeName = buildUploadFileName_(normalizedRequestId, item.fileName, index)
+    var mimeType = String(item.mimeType || 'application/octet-stream')
+    var bytes = Utilities.base64Decode(String(item.base64Content))
+    var blob = Utilities.newBlob(bytes, mimeType, safeName)
+    var file = requestFolder.createFile(blob)
+
+    uploadedFiles.push({
+      fileId: file.getId(),
+      fileName: file.getName(),
+      originalUrl: buildDriveFileViewUrl_(file.getId()),
+      usableUrl: buildDriveThumbnailUrl_(file.getId()),
+    })
+  }
+
+  return {
+    folderId: requestFolder.getId(),
+    folderUrl: 'https://drive.google.com/drive/folders/' + requestFolder.getId(),
+    files: uploadedFiles,
+  }
+}
+
+function resolveRequestFolderImage_(parentFolderId, requestId, rootFolderName) {
+  var normalizedRequestId = String(requestId || '').trim()
+
+  if (!parentFolderId || !normalizedRequestId) {
+    return {
+      requestId: normalizedRequestId,
+    }
+  }
+
+  var parentFolder = DriveApp.getFolderById(parentFolderId)
+  var requestRootFolder = getChildFolderByName_(parentFolder, String(rootFolderName || 'solicitacoes_produto').trim() || 'solicitacoes_produto')
+
+  if (!requestRootFolder) {
+    return {
+      requestId: normalizedRequestId,
+    }
+  }
+
+  var requestFolder = getChildFolderByName_(requestRootFolder, normalizedRequestId)
+
+  if (!requestFolder) {
+    return {
+      requestId: normalizedRequestId,
+    }
+  }
+
+  return {
+    requestId: normalizedRequestId,
+    folderId: requestFolder.getId(),
+    folderUrl: 'https://drive.google.com/drive/folders/' + requestFolder.getId(),
+    image: getFirstImageFromFolder_(requestFolder.getId()),
+  }
+}
+
+function getOrCreateChildFolder_(parentFolder, folderName) {
+  var folders = parentFolder.getFoldersByName(folderName)
+
+  if (folders.hasNext()) {
+    return folders.next()
+  }
+
+  return parentFolder.createFolder(folderName)
+}
+
+function getChildFolderByName_(parentFolder, folderName) {
+  var folders = parentFolder.getFoldersByName(folderName)
+  return folders.hasNext() ? folders.next() : null
+}
+
+function buildUploadFileName_(requestId, fileName, index) {
+  var rawName = String(fileName || '').trim()
+
+  if (!rawName) {
+    return requestId + '_' + (index + 1) + '.jpg'
+  }
+
+  return rawName
 }

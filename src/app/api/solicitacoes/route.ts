@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { filterRequestsForAccount, getAuthenticatedAccount } from '@/lib/services/account.service'
 import { createBatchRequests, createRequest, listRequests } from '@/lib/services/request.service'
-import type { ChangeRequestStatus } from '@/types/request'
+import type { RequestHistoryType, RequestHistoryStatus } from '@/types/request'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,10 +15,11 @@ export async function GET(request: Request) {
     }
 
     const data = await listRequests({
-      status: (searchParams.get('status') as ChangeRequestStatus | null) ?? undefined,
+      status: (searchParams.get('status') as RequestHistoryStatus | null) ?? undefined,
       sku: searchParams.get('sku') ?? undefined,
       nome: searchParams.get('nome') ?? undefined,
       loja: searchParams.get('loja') ?? undefined,
+      tipoSolicitacao: (searchParams.get('tipoSolicitacao') as RequestHistoryType | null) ?? undefined,
     })
 
     return NextResponse.json({ data: filterRequestsForAccount(account, data) }, { headers: { 'Cache-Control': 'no-store' } })

@@ -10,7 +10,7 @@ import type {
   UserAccount,
 } from '@/types/account'
 import type { CatalogProduct } from '@/types/catalog'
-import type { ChangeRequest } from '@/types/request'
+import type { ChangeRequest, RequestHistoryEntry } from '@/types/request'
 
 const ACCOUNTS_TABLE = 'app_accounts'
 const ACCOUNT_SCOPES_TABLE = 'account_access_scopes'
@@ -40,7 +40,12 @@ function normalizePrefix(prefix?: string | null) {
   return normalizeCode(prefix).slice(0, 5)
 }
 
-function getFornecedorPrefix(product: Pick<CatalogProduct, 'clienteCod' | 'skuBase'> | Pick<ChangeRequest, 'clienteCod' | 'skuBase'>) {
+function getFornecedorPrefix(
+  product:
+    | Pick<CatalogProduct, 'clienteCod' | 'skuBase'>
+    | Pick<ChangeRequest, 'clienteCod' | 'skuBase'>
+    | Pick<RequestHistoryEntry, 'clienteCod' | 'skuBase'>,
+) {
   return normalizePrefix(product.clienteCod || product.skuBase)
 }
 
@@ -401,18 +406,14 @@ export function filterCatalogProductsForAccount(account: UserAccount, products: 
   return products.filter((product) => canAccessCatalogProduct(account, product))
 }
 
-export function canAccessRequest(account: UserAccount, request: ChangeRequest) {
+export function canAccessRequest(account: UserAccount, request: RequestHistoryEntry) {
   if (account.role === 'admin') {
     return true
   }
 
-  if (account.access.scopeType === 'fornecedor_prefix') {
-    return account.access.lojas.includes(request.loja) && account.access.fornecedorPrefixes.includes(getFornecedorPrefix(request))
-  }
-
-  return account.access.lojas.includes(request.loja) && account.access.clienteCods.includes(normalizeCode(request.clienteCod))
+  return normalizeEmail(request.operadorEmail) === normalizeEmail(account.email)
 }
 
-export function filterRequestsForAccount(account: UserAccount, requests: ChangeRequest[]) {
+export function filterRequestsForAccount(account: UserAccount, requests: RequestHistoryEntry[]) {
   return requests.filter((request) => canAccessRequest(account, request))
 }

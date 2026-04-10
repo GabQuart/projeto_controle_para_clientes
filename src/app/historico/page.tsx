@@ -8,14 +8,15 @@ import { LoadingOverlay } from '@/components/LoadingOverlay'
 import { SearchBar } from '@/components/SearchBar'
 import { normalizeText } from '@/lib/utils/format'
 import type { UserAccount } from '@/types/account'
-import type { ChangeRequest, ChangeRequestStatus } from '@/types/request'
+import type { RequestHistoryEntry, RequestHistoryStatus, RequestHistoryType } from '@/types/request'
 
 export default function HistoricoPage() {
   const router = useRouter()
   const [account, setAccount] = useState<UserAccount | null>(null)
-  const [requests, setRequests] = useState<ChangeRequest[]>([])
+  const [requests, setRequests] = useState<RequestHistoryEntry[]>([])
   const [search, setSearch] = useState('')
-  const [status, setStatus] = useState<ChangeRequestStatus | 'todos'>('todos')
+  const [status, setStatus] = useState<RequestHistoryStatus | 'todos'>('todos')
+  const [requestType, setRequestType] = useState<RequestHistoryType | 'todos'>('todos')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -59,6 +60,10 @@ export default function HistoricoPage() {
           params.set('status', status)
         }
 
+        if (requestType !== 'todos') {
+          params.set('tipoSolicitacao', requestType)
+        }
+
         const response = await fetch(`/api/solicitacoes?${params.toString()}`, { cache: 'no-store' })
         const payload = await response.json()
 
@@ -80,7 +85,7 @@ export default function HistoricoPage() {
     }
 
     loadHistory()
-  }, [account, status])
+  }, [account, requestType, router, status])
 
   const filteredRequests = useMemo(() => {
     const normalized = normalizeText(search)
@@ -90,7 +95,7 @@ export default function HistoricoPage() {
     }
 
     return requests.filter((request) => {
-      const searchBlob = normalizeText(`${request.titulo} ${request.skuBase} ${request.skuVariacao ?? ''} ${request.detalhe}`)
+      const searchBlob = normalizeText(`${request.titulo} ${request.skuBase} ${request.skuVariacao ?? ''} ${request.detalhe} ${request.id}`)
       return searchBlob.includes(normalized)
     })
   }, [requests, search])
@@ -112,16 +117,29 @@ export default function HistoricoPage() {
           </Link>
         </div>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-[2fr_280px]">
+        <div className="mt-8 grid gap-4 lg:grid-cols-[2fr_240px_280px]">
           <SearchBar value={search} onChange={setSearch} placeholder="Buscar por nome, SKU ou detalhe" label="Busca no historico" />
+          <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
+            Tipo
+            <select
+              value={requestType}
+              onChange={(event) => setRequestType(event.target.value as RequestHistoryType | 'todos')}
+              className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+            >
+              <option value="todos" className="bg-slate text-ink">Todos</option>
+              <option value="operacional" className="bg-slate text-ink">Ativar ou inativar</option>
+              <option value="novo_produto" className="bg-slate text-ink">Novos produtos</option>
+            </select>
+          </label>
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
             Status
             <select
               value={status}
-              onChange={(event) => setStatus(event.target.value as ChangeRequestStatus | 'todos')}
+              onChange={(event) => setStatus(event.target.value as RequestHistoryStatus | 'todos')}
               className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
             >
               <option value="todos" className="bg-slate text-ink">Todos</option>
+              <option value="pendente" className="bg-slate text-ink">Pendente</option>
               <option value="nao_concluido" className="bg-slate text-ink">Nao concluido</option>
               <option value="em_andamento" className="bg-slate text-ink">Em andamento</option>
               <option value="concluido" className="bg-slate text-ink">Concluido</option>

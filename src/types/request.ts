@@ -1,4 +1,6 @@
 export type ChangeRequestStatus = 'nao_concluido' | 'em_andamento' | 'concluido' | 'cancelado'
+export type RequestHistoryStatus = ChangeRequestStatus | 'pendente'
+export type RequestHistoryType = 'operacional' | 'novo_produto'
 
 export type ChangeRequestType =
   | 'ativar_produto'
@@ -36,6 +38,33 @@ export type ChangeRequest = {
   variacoesSelecionadas?: string[]
   estoqueGeral?: number
   estoquePorVariacao?: RequestedVariantStock[]
+  tipoSolicitacao?: RequestHistoryType
+}
+
+export type RequestHistoryEntry = {
+  id: string
+  loteId?: string
+  dataAbertura: string
+  operadorEmail: string
+  operadorNome: string
+  clienteCod: string
+  loja: string
+  skuBase: string
+  skuVariacao?: string
+  titulo: string
+  fotoRef?: string
+  tipoAlteracao?: ChangeRequestType
+  detalhe: string
+  status: RequestHistoryStatus
+  responsavelInterno?: string
+  dataConclusao?: string
+  variacoesSelecionadas?: string[]
+  estoqueGeral?: number
+  estoquePorVariacao?: RequestedVariantStock[]
+  tipoSolicitacao: RequestHistoryType
+  requestLabel: string
+  folderUrl?: string
+  imageCount?: number
 }
 
 export type BulkRequestItemInput = {
@@ -51,8 +80,9 @@ export type BulkCreateRequestInput = {
 }
 
 export type ChangeRequestFilters = {
-  status?: ChangeRequestStatus
+  status?: RequestHistoryStatus
   sku?: string
   nome?: string
   loja?: string
+  tipoSolicitacao?: RequestHistoryType
 }

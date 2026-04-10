@@ -1,10 +1,11 @@
 import Image from 'next/image'
-import type { ChangeRequest } from '@/types/request'
+import Link from 'next/link'
+import type { RequestHistoryEntry } from '@/types/request'
 import { formatDateTime } from '@/lib/utils/format'
 import { StatusBadge } from '@/components/StatusBadge'
 
 type HistoryTableProps = {
-  requests: ChangeRequest[]
+  requests: RequestHistoryEntry[]
 }
 
 function getHistoryImageSrc(value?: string) {
@@ -55,13 +56,28 @@ export function HistoryTable({ requests }: HistoryTableProps) {
                   <h3 className="font-display text-xl font-semibold tracking-[0.04em] text-ink">{request.titulo}</h3>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs text-steel sm:text-sm">
-                  <span className="brand-chip rounded-full px-3 py-1">SKU catalogo: {request.skuBase}</span>
+                  <span className="brand-chip rounded-full px-3 py-1">
+                    {request.tipoSolicitacao === 'novo_produto' ? 'Novo produto' : 'Operacional'}
+                  </span>
+                  {request.skuBase ? <span className="brand-chip rounded-full px-3 py-1">SKU catalogo: {request.skuBase}</span> : null}
                   {request.skuVariacao ? (
                     <span className="brand-chip rounded-full px-3 py-1">SKU: {request.skuVariacao}</span>
                   ) : null}
+                  {request.imageCount ? (
+                    <span className="brand-chip rounded-full px-3 py-1">{request.imageCount} imagem(ns)</span>
+                  ) : null}
                 </div>
-                <p className="text-sm uppercase tracking-[0.18em] text-steel">{request.tipoAlteracao.replaceAll('_', ' ')}</p>
+                <p className="text-sm uppercase tracking-[0.18em] text-steel">{request.requestLabel}</p>
                 <p className="text-sm text-ink/80">{request.detalhe}</p>
+                {request.folderUrl ? (
+                  <Link
+                    href={request.folderUrl}
+                    target="_blank"
+                    className="inline-flex text-xs font-semibold uppercase tracking-[0.18em] text-amber underline-offset-4 hover:underline"
+                  >
+                    Abrir pasta das imagens
+                  </Link>
+                ) : null}
               </div>
             </div>
             <div className="flex flex-col items-start gap-3 border-t border-white/10 pt-3 sm:border-t-0 sm:pt-0 lg:items-end">

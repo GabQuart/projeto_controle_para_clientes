@@ -13,6 +13,32 @@ export type DriveImageGalleryReference = {
   images: DriveImageReference[]
 }
 
+export type DriveUploadInputFile = {
+  fileName: string
+  mimeType: string
+  base64Content: string
+}
+
+export type DriveUploadedFileReference = {
+  fileId: string
+  fileName: string
+  originalUrl: string
+  usableUrl: string
+}
+
+export type DriveUploadResult = {
+  folderId: string
+  folderUrl: string
+  files: DriveUploadedFileReference[]
+}
+
+export type DriveRequestFolderImageReference = {
+  requestId: string
+  folderId?: string
+  folderUrl?: string
+  image?: DriveImageReference
+}
+
 export function extractGoogleDriveId(value?: string | null) {
   return extractDriveId(value)
 }
@@ -90,6 +116,37 @@ export async function resolveReferenceImageGallery(
     query: {
       linkOrId: linkOrId ?? resolvedId,
       limit: String(limit),
+    },
+  })
+}
+
+export async function uploadFilesToDriveRequestFolder(input: {
+  parentFolderId: string
+  requestId: string
+  rootFolderName?: string
+  files: DriveUploadInputFile[]
+}) {
+  return requestAppsScript<DriveUploadResult>('uploadFilesToRequestFolder', {
+    method: 'POST',
+    body: {
+      parentFolderId: input.parentFolderId,
+      requestId: input.requestId,
+      rootFolderName: input.rootFolderName,
+      files: input.files,
+    },
+  })
+}
+
+export async function resolveDriveRequestFolderImage(input: {
+  parentFolderId: string
+  requestId: string
+  rootFolderName?: string
+}) {
+  return requestAppsScript<DriveRequestFolderImageReference>('resolveRequestFolderImage', {
+    query: {
+      parentFolderId: input.parentFolderId,
+      requestId: input.requestId,
+      rootFolderName: input.rootFolderName,
     },
   })
 }

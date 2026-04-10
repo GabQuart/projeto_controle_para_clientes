@@ -54,11 +54,18 @@ O sistema le o catalogo em uma planilha Google Sheets somente leitura, organiza 
 ```env
 APPS_SCRIPT_WEB_APP_URL=https://script.google.com/macros/s/SEU_DEPLOYMENT_ID/exec
 APPS_SCRIPT_TOKEN=
-GOOGLE_SOURCE_SHEET_ID=seu id
-GOOGLE_OUTPUT_SHEET_ID=seu id
-GOOGLE_DRIVE_FOLDER_ID= seu id
+GOOGLE_SOURCE_SHEET_ID=YOUR_GOOGLE_SOURCE_SHEET_ID
+GOOGLE_OUTPUT_SHEET_ID=YOUR_GOOGLE_OUTPUT_SHEET_ID
+GOOGLE_DRIVE_FOLDER_ID=YOUR_GOOGLE_DRIVE_FOLDER_ID
+GOOGLE_PRODUCT_REQUESTS_SHEET_ID=YOUR_GOOGLE_PRODUCT_REQUESTS_SHEET_ID
+GOOGLE_PRODUCT_REQUESTS_SHEET_NAME=solicitacoes_produto
+GOOGLE_PRODUCT_REQUESTS_UPLOAD_FOLDER_ID=YOUR_GOOGLE_PRODUCT_REQUESTS_UPLOAD_FOLDER_ID
+GOOGLE_PRODUCT_REQUESTS_DRIVE_ROOT_NAME=solicitacoes_produto
 CATALOG_CACHE_TTL_MINUTES=10
-NEXT_PUBLIC_APP_NAME=nome da planilha
+NEXT_PUBLIC_APP_NAME=Catalogo Marketplace
+NEXT_PUBLIC_SUPABASE_URL=YOUR_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY=YOUR_SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 ```
 
 ## Cache local do catalogo
@@ -110,7 +117,11 @@ Para a miniatura aparecer no navegador com consistencia, o arquivo de imagem pre
 - `GET /api/solicitacoes?status=nao_concluido&loja=KricaKids`
   - Lista solicitacoes gravadas na planilha de saida.
 - `POST /api/solicitacoes`
-  - Cria uma nova solicitacao. Para ativacao e inativacao, a rota tambem atualiza a coluna `ativo` da aba `VARIACOES_SKU` na planilha principal.
+  - Cria uma nova solicitacao. Para ativacao e inativacao, a rota tambem atualiza o status no espelho do Supabase.
+- `GET /api/solicitacoes-produto`
+  - Retorna listas internas de tamanhos e cores, alem das lojas disponiveis para a conta autenticada.
+- `POST /api/solicitacoes-produto`
+  - Cria uma solicitacao de novo produto, envia as imagens para o Drive em `solicitacoes_produto/<id_da_solicitacao>` e grava a linha na planilha de solicitacoes de produto.
 - `GET /api/operadores`
   - Lista operadores mockados para login inicial.
 - `GET /api/catalogo/imagem/:fileId?kind=file|folder`

@@ -1,14 +1,16 @@
 import clsx from 'clsx'
-import type { ChangeRequestStatus } from '@/types/request'
+import type { RequestHistoryStatus } from '@/types/request'
 
-const LABELS: Record<ChangeRequestStatus, string> = {
+const LABELS: Record<RequestHistoryStatus, string> = {
+  pendente: 'Pendente',
   nao_concluido: 'Nao concluido',
   em_andamento: 'Em andamento',
   concluido: 'Concluido',
   cancelado: 'Cancelado',
 }
 
-const STYLES: Record<ChangeRequestStatus, string> = {
+const STYLES: Record<RequestHistoryStatus, string> = {
+  pendente: 'border-amber/35 bg-amber/10 text-amber',
   nao_concluido: 'border-amber/35 bg-amber/10 text-amber',
   em_andamento: 'border-cobalt/40 bg-cobalt/15 text-[#96c4ff]',
   concluido: 'border-pine/35 bg-pine/10 text-pine',
@@ -16,7 +18,7 @@ const STYLES: Record<ChangeRequestStatus, string> = {
 }
 
 type StatusBadgeProps = {
-  status: ChangeRequestStatus
+  status: RequestHistoryStatus
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
