@@ -1,5 +1,12 @@
-import type { ReactElement } from 'react'
+'use client'
+
+import { useEffect, useState, type ReactElement } from 'react'
 import type { RequestedCatalogAction } from '@/types/request'
+
+type ActionSelection = {
+  requestedAction: RequestedCatalogAction
+  quantity?: number
+}
 
 const ACTION_OPTIONS: Array<{
   value: RequestedCatalogAction
@@ -19,31 +26,42 @@ const ACTION_OPTIONS: Array<{
     className: 'border-clay/25 bg-clay/10 text-clay hover:bg-clay/20',
     icon: <path d="M6 11h12v2H6z" fill="currentColor" />,
   },
-  {
-    value: 'alteracao_especifica',
-    label: 'Alteracao especifica',
-    className: 'border-amber/25 bg-amber/10 text-amber hover:bg-amber/20',
-    icon: (
-      <path
-        d="M16.5 3.5l4 4L9 19H5v-4L16.5 3.5zm-8.3 13.7l8.9-8.9-1.2-1.2-8.9 8.9V17h1.2z"
-        fill="currentColor"
-      />
-    ),
-  },
 ]
 
 type ActionSelectorProps = {
-  onSelect: (value: RequestedCatalogAction) => void
+  defaultQuantity?: number
+  onSelect: (selection: ActionSelection) => void
 }
 
-export function ActionSelector({ onSelect }: ActionSelectorProps) {
+export function ActionSelector({ defaultQuantity, onSelect }: ActionSelectorProps) {
+  const [quantity, setQuantity] = useState(defaultQuantity ? String(defaultQuantity) : '')
+
+  useEffect(() => {
+    setQuantity(defaultQuantity ? String(defaultQuantity) : '')
+  }, [defaultQuantity])
+
+  function parseQuantity() {
+    const parsed = Number(quantity)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+  }
+
   return (
-    <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,140px)_auto_auto] sm:items-center">
+      <input
+        type="number"
+        min="0"
+        step="1"
+        inputMode="numeric"
+        value={quantity}
+        onChange={(event) => setQuantity(event.target.value)}
+        placeholder="Qtd. ativar"
+        className="brand-chip rounded-full px-4 py-3 text-sm text-ink outline-none placeholder:text-steel focus:border-amber/40"
+      />
       {ACTION_OPTIONS.map((option) => (
         <button
           key={option.value}
           type="button"
-          onClick={() => onSelect(option.value)}
+          onClick={() => onSelect({ requestedAction: option.value, quantity: option.value === 'ativar' ? parseQuantity() : undefined })}
           className={`inline-flex items-center justify-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold transition ${option.className}`}
         >
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4">

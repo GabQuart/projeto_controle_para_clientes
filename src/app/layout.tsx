@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
+import Image from 'next/image'
 import Link from 'next/link'
 import { Oxanium, Sora } from 'next/font/google'
 import './globals.css'
@@ -16,7 +17,7 @@ const oxanium = Oxanium({
 
 export const metadata: Metadata = {
   title: 'M3rcadeo | Catalogo Marketplace',
-  description: 'Operacao de marketplaces com catalogo, solicitacoes e historico integrados.',
+  description: 'Catalogo, operacao e historico da M3rcadeo.',
 }
 
 export const viewport: Viewport = {
@@ -77,16 +78,21 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
               <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-center gap-4">
                   <Link href="/catalogo" className="flex items-center gap-4">
-                    <div className="brand-chip brand-glow flex h-12 w-12 items-center justify-center rounded-2xl">
-                      <span className="font-display text-xl font-bold tracking-[0.14em] text-amber">M3</span>
+                    <div className="brand-glow flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-cobalt/30 bg-night/70 shadow-[0_0_28px_rgba(72,146,255,0.32)]">
+                      <Image
+                        src="/branding/m3rcadeo-header-seal.png"
+                        alt="Logo M3rcadeo"
+                        width={160}
+                        height={160}
+                        className="h-full w-full object-cover"
+                        priority
+                      />
                     </div>
                     <div className="min-w-0">
                       <p className="font-display text-xl font-semibold uppercase tracking-[0.26em] text-ink sm:text-2xl">
                         M3rcadeo
                       </p>
-                      <p className="text-xs uppercase tracking-[0.28em] text-steel">
-                        Gestao e Operacao de Marketplaces
-                      </p>
+                      <p className="text-xs uppercase tracking-[0.28em] text-steel">Operacao de marketplaces</p>
                     </div>
                   </Link>
                 </div>

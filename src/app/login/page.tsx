@@ -4,6 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 
 type AuthMode = 'login' | 'primeiro_acesso'
 
@@ -13,7 +14,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [checkingSession, setCheckingSession] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
@@ -25,44 +25,6 @@ export default function LoginPage() {
     const target = new URLSearchParams(window.location.search).get('next')
     return target && target.startsWith('/') ? target : '/catalogo'
   }
-
-  useEffect(() => {
-    async function bootstrap() {
-      try {
-        const sessionResponse = await fetch('/api/auth/me', { cache: 'no-store' })
-        const sessionPayload = await sessionResponse.json()
-
-        if (!sessionResponse.ok) {
-          throw new Error(sessionPayload.error || 'Falha ao carregar sessao atual')
-        }
-
-        if (sessionPayload.account) {
-          router.replace(getNextPath())
-          return
-        }
-
-        if (sessionPayload.user?.email) {
-          await fetch('/api/auth/logout', {
-            method: 'POST',
-          })
-          setEmail(sessionPayload.user.email)
-          setFeedback({
-            type: 'error',
-            message: 'Seu e-mail autenticado ainda nao tem acesso vinculado. Fale com a M3rcadeo para liberar a conta.',
-          })
-        }
-      } catch (error) {
-        setFeedback({
-          type: 'error',
-          message: error instanceof Error ? error.message : 'Falha ao preparar o login',
-        })
-      } finally {
-        setCheckingSession(false)
-      }
-    }
-
-    bootstrap()
-  }, [router])
 
   useEffect(() => {
     const callbackError = new URLSearchParams(window.location.search).get('error')
@@ -155,13 +117,12 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:flex-row lg:px-8 lg:py-12">
       <section className="order-2 flex-1 rounded-[32px] panel p-5 sm:p-8 lg:order-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">M3rcadeo Access Layer</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Acesso</p>
         <h1 className="mt-4 max-w-3xl font-display text-3xl font-semibold leading-tight text-ink sm:text-4xl lg:text-5xl">
-          Login normal com e-mail e senha, validado pela conta da operacao.
+          Sistema de controle de produtos e abertura de chamados.
         </h1>
         <p className="mt-4 max-w-2xl text-sm text-steel sm:text-base lg:text-lg">
-          O admin cadastra o acesso interno e o usuario entra com senha normal. No primeiro acesso, ele ativa a autenticacao
-          com o mesmo e-mail autorizado.
+          Consulte catalogos por loja, acompanhe status de produtos e variacoes e envie solicitacoes operacionais de forma rapida.
         </p>
 
         <div className="brand-wordmark-frame brand-glow mt-8 overflow-hidden rounded-[28px] p-3">
@@ -177,16 +138,16 @@ export default function LoginPage() {
 
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           <div className="brand-chip rounded-3xl p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Login direto</p>
-            <p className="mt-2 text-sm text-steel">Nada de magic link: o usuario entra com e-mail e senha normal.</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Catalogo</p>
+            <p className="mt-2 text-sm text-steel">Visualize produtos, variacoes e status por loja.</p>
           </div>
           <div className="brand-chip rounded-3xl p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Primeiro acesso</p>
-            <p className="mt-2 text-sm text-steel">Se a conta ja foi cadastrada pelo admin, o proprio cliente define a senha inicial.</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Chamados</p>
+            <p className="mt-2 text-sm text-steel">Abra ativacoes e inativacoes em poucos cliques.</p>
           </div>
           <div className="brand-chip rounded-3xl p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Conta interna</p>
-            <p className="mt-2 text-sm text-steel">Mesmo autenticado no Supabase, o acesso so abre se o e-mail existir nas contas do sistema.</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Historico</p>
+            <p className="mt-2 text-sm text-steel">Acompanhe a fila e o registro das solicitacoes abertas.</p>
           </div>
         </div>
       </section>
@@ -199,9 +160,7 @@ export default function LoginPage() {
           {isFirstAccess ? 'Ative sua conta com uma senha' : 'Entre com seu e-mail e senha'}
         </h2>
         <p className="mt-3 text-sm text-steel">
-          {isFirstAccess
-            ? 'Use exatamente o e-mail que a M3rcadeo cadastrou para voce.'
-            : 'Se ainda nao definiu senha, use a aba de primeiro acesso.'}
+          {isFirstAccess ? 'Use o e-mail liberado para sua conta.' : 'Se ainda nao tem senha, use a aba de primeiro acesso.'}
         </p>
 
         <div className="mt-6 flex gap-2 rounded-full border border-white/10 bg-night/60 p-1">
@@ -280,7 +239,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={isFirstAccess ? handleFirstAccess : handleLogin}
-            disabled={submitting || checkingSession || !email || !password || (isFirstAccess && !confirmPassword)}
+            disabled={submitting || !email || !password || (isFirstAccess && !confirmPassword)}
             className="w-full rounded-full bg-cobalt px-5 py-3 text-sm font-bold uppercase tracking-[0.18em] text-white transition hover:bg-[#418dff] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {submitting ? 'Processando...' : isFirstAccess ? 'Criar senha e entrar' : 'Entrar no sistema'}
@@ -296,6 +255,10 @@ export default function LoginPage() {
           </Link>
         </div>
       </section>
+      <LoadingOverlay
+        open={submitting}
+        label={isFirstAccess ? 'Criando acesso...' : 'Entrando no sistema...'}
+      />
     </main>
   )
 }

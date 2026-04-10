@@ -6,7 +6,15 @@ import { ActionSelector } from '@/components/ActionSelector'
 
 type VariantListProps = {
   product: CatalogProduct
-  onAction: (input: { product: CatalogProduct; variant: CatalogVariant; requestedAction: RequestedCatalogAction }) => void
+  onAction: (input: { product: CatalogProduct; variant: CatalogVariant; requestedAction: RequestedCatalogAction; quantity?: number }) => void
+}
+
+function getVariantStatusChip(variant: CatalogVariant) {
+  if (!variant.ativo) {
+    return <span className="inline-flex rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300">Inativa</span>
+  }
+
+  return <span className="inline-flex rounded-full border border-pine/35 bg-pine/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-pine">Ativa</span>
 }
 
 function VariantActionRow({
@@ -16,18 +24,23 @@ function VariantActionRow({
 }: {
   product: CatalogProduct
   variant: CatalogVariant
-  onAction: (input: { product: CatalogProduct; variant: CatalogVariant; requestedAction: RequestedCatalogAction }) => void
+  onAction: (input: { product: CatalogProduct; variant: CatalogVariant; requestedAction: RequestedCatalogAction; quantity?: number }) => void
 }) {
+  const isInactive = !variant.ativo
+
   return (
-    <div className="brand-chip rounded-2xl p-3">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="min-w-0">
-          <p className="break-all text-sm font-semibold text-ink">{variant.sku}</p>
-          <p className="text-sm text-steel">
+    <div className={`rounded-2xl p-3 ${isInactive ? 'border border-white/12 bg-[linear-gradient(180deg,rgba(43,49,60,0.72),rgba(24,28,36,0.82))]' : 'brand-chip'}`}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className={`min-w-0 space-y-2 ${isInactive ? 'opacity-85' : ''}`}>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className={`break-all text-sm font-semibold ${isInactive ? 'text-slate-200' : 'text-ink'}`}>SKU: {variant.sku}</p>
+            {getVariantStatusChip(variant)}
+          </div>
+          <p className={`text-sm ${isInactive ? 'text-slate-400' : 'text-steel'}`}>
             {[variant.variacao || variant.cor, variant.tamanho].filter(Boolean).join(' | ') || 'Sem detalhamento adicional'}
           </p>
         </div>
-        <ActionSelector onSelect={(requestedAction) => onAction({ product, variant, requestedAction })} />
+        <ActionSelector onSelect={({ requestedAction, quantity }) => onAction({ product, variant, requestedAction, quantity })} />
       </div>
     </div>
   )

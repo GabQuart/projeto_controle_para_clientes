@@ -1,4 +1,4 @@
-﻿import { readMultipleSheetTabs } from '@/lib/google/sheets'
+import { createAdminClient } from '@/utils/supabase/admin'
 import {
   buildGoogleDriveFolderLink,
   extractGoogleDriveId,
@@ -8,14 +8,71 @@ import {
 } from '@/lib/google/drive'
 import { compactText, normalizeText, splitList, toBooleanFlag } from '@/lib/utils/format'
 import { buildDriveThumbnailUrl } from '@/lib/utils/drive-url'
-import { extractSkuBase, matchesSkuTerm, normalizeSku } from '@/lib/utils/sku'
+import { matchesSkuTerm, normalizeSku } from '@/lib/utils/sku'
 import { getCatalogCache, patchCatalogCacheItems } from '@/lib/services/catalog-cache.service'
-import type { CatalogCacheMetadata, CatalogProduct, CatalogQuery, CatalogVariant } from '@/types/catalog'
+import type {
+  CatalogCacheMetadata,
+  CatalogProduct,
+  CatalogQuery,
+  CatalogStatusFilter,
+  CatalogVariant,
+} from '@/types/catalog'
 
-const SOURCE_SHEET_ID = process.env.GOOGLE_SOURCE_SHEET_ID ?? ''
-const PRODUCT_SHEET = 'CATALOGO_PRODUTOS'
-const VARIANT_SHEET = 'VARIACOES_SKU'
-const CLIENT_SHEET = 'DIC_CLIENTES'
+type VariantStatus = CatalogVariant['status']
+type ProductStatus = CatalogProduct['status']
+
+type MirrorProductRow = {
+  sku_base: string
+  prefixo_sku?: string | null
+  cliente_cod?: string | null
+  loja?: string | null
+  titulo?: string | null
+  cores?: string[] | string | null
+  tamanhos?: string[] | string | null
+  status?: string | null
+  midia_link?: string | null
+}
+
+type MirrorVariantRow = {
+  sku: string
+  sku_base?: string | null
+  prefixo_sku?: string | null
+  cliente_cod?: string | null
+  loja?: string | null
+  titulo?: string | null
+  cor?: string | null
+  tamanho?: string | null
+  status?: string | null
+  midia_link?: string | null
+}
+
+type ClientRow = {
+  fornecedor_cod?: string | null
+  loja_id?: number | null
+}
+
+type StoreRow = {
+  id: number
+  nome?: string | null
+}
+
+const PRODUCT_TABLE = 'catalogo_produtos'
+const VARIANT_TABLE = 'variacoes_sku'
+const CLIENT_TABLE = 'clientes'
+const STORE_TABLE = 'lojas'
+const BATCH_SIZE = 1000
+
+function parseListValue(value?: string[] | string | null) {
+  if (Array.isArray(value)) {
+    return value.map((item) => compactText(String(item))).filter(Boolean)
+  }
+
+  return splitList(value)
+}
+
+function normalizeCatalogStatus(value?: string | null): VariantStatus {
+  return toBooleanFlag(value) ? 'ativo' : 'inativo'
+}
 
 function buildProductImageApiPath(link?: string) {
   const driveId = extractGoogleDriveId(link)
@@ -28,64 +85,146 @@ function buildProductImageApiPath(link?: string) {
   return `/api/catalogo/imagem/${driveId}?kind=${kind}`
 }
 
-function mapStoreDictionary(rows: Record<string, string | undefined>[]) {
-  return rows.reduce<Record<string, string>>((accumulator, row) => {
-    const clienteCod = compactText(row.fornecedor_cod)
-    const loja = compactText(row.loja)
+async function readAllRows<RowType>(table: string, columns = '*') {
+  const supabase = createAdminClient()
+  const rows: RowType[] = []
+  let from = 0
 
-    if (clienteCod) {
-      accumulator[clienteCod] = loja || clienteCod
+  while (true) {
+    const { data, error } = await supabase.from(table).select(columns).range(from, from + BATCH_SIZE - 1)
+
+    if (error) {
+      throw new Error(`Falha ao ler ${table} no Supabase: ${error.message}`)
     }
 
-    return accumulator
-  }, {})
+    const batch = (data ?? []) as RowType[]
+    rows.push(...batch)
+
+    if (batch.length < BATCH_SIZE) {
+      return rows
+    }
+
+    from += BATCH_SIZE
+  }
 }
 
-function buildProductRow(row: Record<string, string | undefined>, storeByClient: Record<string, string>): CatalogProduct {
-  const clienteCod = compactText(row.cd_cliente)
-  const skuBase = normalizeSku(row.id_produto || `${clienteCod}.${row.num_prod}`)
-  const fotoLink = row['midia__hyperlink'] ?? row.midia
+function buildStoreByClientMap(clients: ClientRow[], stores: StoreRow[]) {
+  const storesById = new Map(stores.map((store) => [store.id, compactText(store.nome ?? '')]))
+  const clientMap = new Map<string, string>()
+
+  for (const client of clients) {
+    const fornecedorCod = normalizeSku(client.fornecedor_cod)
+    const loja = storesById.get(Number(client.loja_id)) || ''
+
+    if (fornecedorCod && loja) {
+      clientMap.set(fornecedorCod, loja)
+    }
+  }
+
+  return clientMap
+}
+
+function mapProductRow(row: MirrorProductRow, storeByClient: Map<string, string>): CatalogProduct {
+  const skuBase = normalizeSku(row.sku_base)
+  const clienteCod = normalizeSku(row.cliente_cod || row.prefixo_sku)
+  const prefixoSku = normalizeSku(row.prefixo_sku || clienteCod)
+  const loja = compactText(row.loja || '') || storeByClient.get(prefixoSku) || storeByClient.get(clienteCod) || clienteCod
+  const fotoLink = compactText(row.midia_link || '')
   const fotoDriveKind = isGoogleDriveFolderLink(fotoLink) ? 'folder' : 'file'
   const fotoFileId = extractGoogleDriveId(fotoLink)
+  const baseStatus = normalizeCatalogStatus(row.status)
 
   return {
     id: skuBase,
     clienteCod,
-    loja: storeByClient[clienteCod] ?? clienteCod,
+    loja,
     skuBase,
-    titulo: compactText(row.Titulo),
+    prefixoSku,
+    titulo: compactText(row.titulo || ''),
     fotoRef: fotoDriveKind === 'file' ? buildDriveThumbnailUrl(fotoFileId) : buildProductImageApiPath(fotoLink),
     fotoFileId,
     fotoDriveKind,
-    cores: splitList(row.Cores),
-    tamanhos: splitList(row.Tamanhos),
-    ativo: true,
+    cores: parseListValue(row.cores),
+    tamanhos: parseListValue(row.tamanhos),
+    ativo: baseStatus !== 'inativo',
+    status: baseStatus,
+    inactiveVariantCount: 0,
+    activeVariantCount: 0,
     variacoes: [],
   }
 }
 
-function buildVariantRow(row: Record<string, string | undefined>): CatalogVariant {
+function mapVariantRow(row: MirrorVariantRow, storeByClient: Map<string, string>): CatalogVariant & { loja: string; titulo?: string } {
   const sku = normalizeSku(row.sku)
-  const clienteCod = compactText(row.Cliente)
-  const numProd = compactText(row.num_prod)
-  const variacao = compactText(row['Variação'] ?? row['VariaÃ§Ã£o'])
-  const tamanho = compactText(row.Tamanho)
-  const derivedSkuBase = normalizeSku(clienteCod && numProd ? `${clienteCod}.${numProd}` : '')
+  const skuBase = normalizeSku(row.sku_base)
+  const clienteCod = normalizeSku(row.cliente_cod || row.prefixo_sku)
+  const prefixoSku = normalizeSku(row.prefixo_sku || clienteCod)
+  const loja = compactText(row.loja || '') || storeByClient.get(prefixoSku) || storeByClient.get(clienteCod) || clienteCod
+  const status = normalizeCatalogStatus(row.status)
 
   return {
     id: sku,
     sku,
-    skuBase: derivedSkuBase || extractSkuBase(sku || `${row.Cliente}.${row.num_prod}`),
-    variacao,
-    cor: variacao || undefined,
-    tamanho: tamanho || undefined,
-    ativo: toBooleanFlag(row.ativo),
+    skuBase,
+    variacao: compactText(row.cor || ''),
+    cor: compactText(row.cor || '') || undefined,
+    tamanho: compactText(row.tamanho || '') || undefined,
+    ativo: status === 'ativo',
+    status,
+    loja,
+    titulo: compactText(row.titulo || '') || undefined,
   }
+}
+
+function finalizeProductStatus(product: CatalogProduct): CatalogProduct {
+  const totalVariants = product.variacoes.length
+
+  if (totalVariants === 0) {
+    const status: ProductStatus = product.ativo ? 'ativo' : 'inativo'
+    return {
+      ...product,
+      status,
+      inactiveVariantCount: status === 'inativo' ? 1 : 0,
+      activeVariantCount: status === 'ativo' ? 1 : 0,
+    }
+  }
+
+  const activeVariantCount = product.variacoes.filter((variant) => Boolean(variant.ativo)).length
+  const inactiveVariantCount = totalVariants - activeVariantCount
+  const status: ProductStatus = activeVariantCount === 0 ? 'inativo' : inactiveVariantCount === 0 ? 'ativo' : 'parcial'
+
+  return {
+    ...product,
+    ativo: status !== 'inativo',
+    status,
+    activeVariantCount,
+    inactiveVariantCount,
+  }
+}
+
+function matchesStatusFilter(product: CatalogProduct, statusFilter?: CatalogStatusFilter) {
+  if (!statusFilter || statusFilter === 'todos') {
+    return true
+  }
+
+  if (statusFilter === 'ativos') {
+    return product.status === 'ativo'
+  }
+
+  if (statusFilter === 'inativos') {
+    return product.status === 'inativo'
+  }
+
+  return (product.inactiveVariantCount ?? 0) > 0
 }
 
 function filterCatalog(products: CatalogProduct[], query: CatalogQuery) {
   return products.filter((product) => {
     if (query.clienteCod && product.clienteCod !== query.clienteCod) {
+      return false
+    }
+
+    if (!matchesStatusFilter(product, query.statusFilter)) {
       return false
     }
 
@@ -121,38 +260,55 @@ function normalizeGalleryUrls(product: CatalogProduct, images: string[]) {
 }
 
 async function fetchCatalogFromSource() {
-  if (!SOURCE_SHEET_ID) {
-    throw new Error('GOOGLE_SOURCE_SHEET_ID nao configurado')
-  }
+  const [productRows, variantRows, clientRows, storeRows] = await Promise.all([
+    readAllRows<MirrorProductRow>(PRODUCT_TABLE),
+    readAllRows<MirrorVariantRow>(VARIANT_TABLE),
+    readAllRows<ClientRow>(CLIENT_TABLE),
+    readAllRows<StoreRow>(STORE_TABLE),
+  ])
 
-  const sheets = await readMultipleSheetTabs(SOURCE_SHEET_ID, [PRODUCT_SHEET, VARIANT_SHEET, CLIENT_SHEET])
-  const stores = mapStoreDictionary(sheets[CLIENT_SHEET] ?? [])
-
+  const storeByClient = buildStoreByClientMap(clientRows, storeRows)
   const productMap = new Map<string, CatalogProduct>()
 
-  for (const row of sheets[PRODUCT_SHEET] ?? []) {
-    const product = buildProductRow(row, stores)
+  for (const row of productRows) {
+    const product = mapProductRow(row, storeByClient)
     productMap.set(product.skuBase, product)
   }
 
-  for (const row of sheets[VARIANT_SHEET] ?? []) {
-    const variant = buildVariantRow(row)
+  for (const row of variantRows) {
+    const variant = mapVariantRow(row, storeByClient)
     const product = productMap.get(variant.skuBase)
 
-    if (!product) {
+    if (product) {
+      product.variacoes.push(variant)
       continue
     }
 
-    product.variacoes.push(variant)
+    productMap.set(
+      variant.skuBase,
+      finalizeProductStatus({
+        id: variant.skuBase,
+        clienteCod: normalizeSku(row.cliente_cod || row.prefixo_sku),
+        loja: variant.loja,
+        skuBase: variant.skuBase,
+        prefixoSku: normalizeSku(row.prefixo_sku || row.cliente_cod),
+        titulo: variant.titulo || variant.skuBase,
+        fotoRef: '/placeholder-product.svg',
+        ativo: variant.ativo,
+        status: variant.status,
+        inactiveVariantCount: variant.ativo ? 0 : 1,
+        activeVariantCount: variant.ativo ? 1 : 0,
+        variacoes: [variant],
+      }),
+    )
   }
 
   return Array.from(productMap.values())
-    .map((product) => {
-      const activeVariants = product.variacoes.filter((variant) => variant.ativo)
+    .map<CatalogProduct>((product) => {
+      const finalized = finalizeProductStatus(product)
       return {
-        ...product,
-        ativo: activeVariants.length > 0,
-        fotoRef: product.fotoRef || '/placeholder-product.svg',
+        ...finalized,
+        fotoRef: finalized.fotoRef || '/placeholder-product.svg',
       }
     })
     .sort((a, b) => a.titulo.localeCompare(b.titulo, 'pt-BR'))
@@ -315,9 +471,11 @@ export async function updateCatalogVariantStatuses(statusBySku: Record<string, b
         }
 
         hasRelevantChange = true
+        const status: VariantStatus = nextStatus ? 'ativo' : 'inativo'
         return {
           ...variant,
           ativo: nextStatus,
+          status,
         }
       })
 
@@ -325,12 +483,10 @@ export async function updateCatalogVariantStatuses(statusBySku: Record<string, b
         return product
       }
 
-      return {
+      return finalizeProductStatus({
         ...product,
         variacoes,
-        ativo: variacoes.some((variant) => Boolean(variant.ativo)),
-      }
+      })
     }),
   )
 }
-

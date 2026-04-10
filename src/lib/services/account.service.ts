@@ -1,4 +1,3 @@
-import { listCatalog } from '@/lib/services/catalog.service'
 import { compactText } from '@/lib/utils/format'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { createClient } from '@/utils/supabase/server'
@@ -15,17 +14,29 @@ import type { ChangeRequest } from '@/types/request'
 
 const ACCOUNTS_TABLE = 'app_accounts'
 const ACCOUNT_SCOPES_TABLE = 'account_access_scopes'
-const ACCOUNT_DIRECTORY_TABLE = 'catalog_directory_entries'
+const CLIENTS_TABLE = 'clientes'
+const STORES_TABLE = 'lojas'
+
+type ClientDirectoryRow = {
+  fornecedor_cod?: string | null
+  num_forn?: number | null
+  loja_id?: number | null
+}
+
+type StoreDirectoryRow = {
+  id: number
+  nome?: string | null
+}
 
 function normalizeEmail(email: string) {
   return compactText(email).toLowerCase()
 }
 
-function normalizeCode(code: string) {
-  return compactText(code).toUpperCase()
+function normalizeCode(code?: string | null) {
+  return compactText(code ?? '').toUpperCase()
 }
 
-function normalizePrefix(prefix: string) {
+function normalizePrefix(prefix?: string | null) {
   return normalizeCode(prefix).slice(0, 5)
 }
 
@@ -212,29 +223,48 @@ export async function validateActiveAccount(email: string) {
   return account
 }
 
-function buildDirectoryEntries(products: CatalogProduct[]) {
-  const seen = new Set<string>()
+async function readDirectoryEntries() {
+  const supabase = createAdminClient()
+  const [{ data: clientRows, error: clientError }, { data: storeRows, error: storeError }] = await Promise.all([
+    supabase.from(CLIENTS_TABLE).select('fornecedor_cod,num_forn,loja_id').order('fornecedor_cod', { ascending: true }),
+    supabase.from(STORES_TABLE).select('id,nome').order('nome', { ascending: true }),
+  ])
 
-  return products
-    .map<AccountDirectoryEntry>((product) => ({
-      loja: product.loja,
-      clienteCod: normalizeCode(product.clienteCod),
-      fornecedorPrefix: getFornecedorPrefix(product),
-      label:
-        product.loja === 'Presente Net'
-          ? `${getFornecedorPrefix(product)} | ${product.titulo}`
-          : `${product.loja} | ${normalizeCode(product.clienteCod)}`,
-    }))
-    .filter((entry) => {
-      const key = `${entry.loja}:${entry.clienteCod}:${entry.fornecedorPrefix}`
+  if (clientError) {
+    throw new Error(`Falha ao carregar clientes do diretorio: ${clientError.message}`)
+  }
 
-      if (seen.has(key)) {
-        return false
+  if (storeError) {
+    throw new Error(`Falha ao carregar lojas do diretorio: ${storeError.message}`)
+  }
+
+  const storesById = new Map<number, string>(
+    ((storeRows ?? []) as StoreDirectoryRow[]).map((store) => [store.id, compactText(store.nome ?? '')]),
+  )
+
+  return ((clientRows ?? []) as ClientDirectoryRow[])
+    .map<AccountDirectoryEntry>((client) => {
+      const fornecedorPrefix = normalizePrefix(client.fornecedor_cod)
+      const loja = storesById.get(Number(client.loja_id)) || 'Sem loja'
+      const clienteCod = fornecedorPrefix
+      const numeroFornecedor = client.num_forn ? String(client.num_forn) : fornecedorPrefix
+
+      return {
+        loja,
+        clienteCod,
+        fornecedorPrefix,
+        label: loja === 'Presente Net' ? `${fornecedorPrefix} | Fornecedor ${numeroFornecedor}` : `${loja} | ${clienteCod}`,
       }
-
-      seen.add(key)
-      return true
     })
+    .filter((entry) => entry.fornecedorPrefix)
+    .filter((entry, index, entries) =>
+      entries.findIndex(
+        (candidate) =>
+          candidate.loja === entry.loja &&
+          candidate.clienteCod === entry.clienteCod &&
+          candidate.fornecedorPrefix === entry.fornecedorPrefix,
+      ) === index,
+    )
     .sort((a, b) => {
       if (a.loja !== b.loja) {
         return a.loja.localeCompare(b.loja, 'pt-BR')
@@ -244,58 +274,8 @@ function buildDirectoryEntries(products: CatalogProduct[]) {
     })
 }
 
-async function readDirectoryEntries() {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from(ACCOUNT_DIRECTORY_TABLE)
-    .select('id,loja,cliente_cod,fornecedor_prefix,label,created_at,updated_at')
-    .order('loja', { ascending: true })
-    .order('fornecedor_prefix', { ascending: true })
-
-  if (error) {
-    throw new Error(`Falha ao carregar o diretorio de contas: ${error.message}`)
-  }
-
-  return (data ?? []).map<AccountDirectoryEntry>((entry) => ({
-    id: entry.id,
-    loja: entry.loja,
-    clienteCod: entry.cliente_cod,
-    fornecedorPrefix: entry.fornecedor_prefix,
-    label: entry.label,
-    createdAt: entry.created_at,
-    updatedAt: entry.updated_at,
-  }))
-}
-
-export async function syncAccountDirectory(forceRefresh = false) {
+export async function syncAccountDirectory(_forceRefresh = false) {
   await requireAdminAccount()
-  const currentEntries = forceRefresh ? [] : await readDirectoryEntries()
-
-  if (!forceRefresh && currentEntries.length > 0) {
-    return currentEntries
-  }
-
-  const products = await listCatalog({ forceRefresh: true })
-  const entries = buildDirectoryEntries(products)
-  const supabase = await createClient()
-
-  const { error } = await supabase.from(ACCOUNT_DIRECTORY_TABLE).upsert(
-    entries.map((entry) => ({
-      loja: entry.loja,
-      cliente_cod: entry.clienteCod,
-      fornecedor_prefix: entry.fornecedorPrefix,
-      label: entry.label,
-    })),
-    {
-      onConflict: 'loja,cliente_cod,fornecedor_prefix',
-      ignoreDuplicates: false,
-    },
-  )
-
-  if (error) {
-    throw new Error(`Falha ao sincronizar diretorio de contas: ${error.message}`)
-  }
-
   return readDirectoryEntries()
 }
 

@@ -1,4 +1,4 @@
-﻿export type CatalogVariant = {
+export type CatalogVariant = {
   id: string
   sku: string
   skuBase: string
@@ -6,6 +6,7 @@
   cor?: string
   tamanho?: string
   ativo?: boolean
+  status?: 'ativo' | 'inativo'
 }
 
 export type CatalogProduct = {
@@ -13,6 +14,7 @@ export type CatalogProduct = {
   clienteCod: string
   loja: string
   skuBase: string
+  prefixoSku?: string
   titulo: string
   fotoRef?: string
   fotoFileId?: string
@@ -22,8 +24,13 @@ export type CatalogProduct = {
   cores?: string[]
   tamanhos?: string[]
   ativo?: boolean
+  status?: 'ativo' | 'inativo' | 'parcial'
+  inactiveVariantCount?: number
+  activeVariantCount?: number
   variacoes: CatalogVariant[]
 }
+
+export type CatalogStatusFilter = 'todos' | 'ativos' | 'inativos' | 'com_inativas'
 
 export type CatalogQuery = {
   clienteCod?: string
@@ -31,6 +38,7 @@ export type CatalogQuery = {
   page?: number
   pageSize?: number
   forceRefresh?: boolean
+  statusFilter?: CatalogStatusFilter
 }
 
 export type CatalogPagination = {
@@ -44,5 +52,5 @@ export type CatalogPagination = {
 
 export type CatalogCacheMetadata = {
   updatedAt: string
-  source: 'cache' | 'apps_script'
+  source: 'cache' | 'supabase'
 }
