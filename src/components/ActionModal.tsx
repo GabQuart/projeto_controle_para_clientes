@@ -152,7 +152,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="panel flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] sm:rounded-[28px]">
+      <div className="panel flex max-h-[calc(100dvh-0.75rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[28px]">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">

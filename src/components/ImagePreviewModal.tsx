@@ -110,11 +110,24 @@ export function ImagePreviewModal({
     }
   }, [open, skuBase])
 
+  useEffect(() => {
+    if (!open || safeImages.length <= 1) {
+      return
+    }
+
+    const nextIndex = (activeIndex + 1) % safeImages.length
+    const previousIndex = (activeIndex - 1 + safeImages.length) % safeImages.length
+    const preloadTargets = [safeImages[nextIndex], safeImages[previousIndex]].filter(Boolean)
+
+    preloadTargets.forEach((src) => {
+      const image = new window.Image()
+      image.src = src
+    })
+  }, [activeIndex, open, safeImages])
+
   if (!open) {
     return null
   }
-
-  const activeImage = safeImages[activeIndex] || '/placeholder-product.svg'
 
   function goToPreviousImage() {
     setActiveIndex((currentIndex) => (currentIndex - 1 + safeImages.length) % safeImages.length)
@@ -153,39 +166,57 @@ export function ImagePreviewModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-night/90 p-4 backdrop-blur-md" onClick={onClose}>
+    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-night/90 p-0 backdrop-blur-md sm:items-center sm:p-4" onClick={onClose}>
       <div
-        className="panel brand-glow w-full max-w-5xl overflow-hidden rounded-[28px]"
+        className="panel brand-glow flex h-[100dvh] w-full flex-col overflow-hidden rounded-none sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-5xl sm:rounded-[28px]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">Visualizacao da imagem</p>
-            <h2 className="truncate font-display text-lg font-semibold text-ink sm:text-2xl">{imageAlt}</h2>
-            {subtitle ? <p className="mt-1 text-sm text-steel">{subtitle}</p> : null}
+        <div className="shrink-0 border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">Visualizacao da imagem</p>
+              <h2 className="truncate font-display text-base font-semibold text-ink sm:text-2xl">{imageAlt}</h2>
+              {subtitle ? <p className="mt-1 text-xs text-steel sm:text-sm">{subtitle}</p> : null}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="brand-chip shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-ink"
+            >
+              Fechar
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="brand-chip shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-ink"
-          >
-            Fechar
-          </button>
         </div>
 
-        <div className="space-y-4 bg-[radial-gradient(circle_at_top,rgba(88,200,255,0.18),transparent_40%),linear-gradient(180deg,rgba(5,12,21,0.96),rgba(4,9,19,0.98))] p-3 sm:p-5">
+        <div className="brand-scrollbar flex min-h-0 flex-1 flex-col space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(88,200,255,0.18),transparent_40%),linear-gradient(180deg,rgba(5,12,21,0.96),rgba(4,9,19,0.98))] p-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:space-y-4 sm:p-5">
           <div
-            className="relative min-h-[280px] touch-pan-y overflow-hidden rounded-[24px] border border-white/10 bg-black/20 sm:min-h-[520px]"
+            className="relative h-[clamp(220px,42dvh,520px)] min-h-[220px] touch-pan-y overflow-hidden rounded-[24px] border border-white/10 bg-black/20 sm:h-[clamp(360px,64vh,760px)]"
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            <Image src={activeImage} alt={imageAlt} fill sizes="100vw" className="object-contain" priority />
+            <div
+              className="flex h-full w-full transition-transform duration-300 ease-out"
+              style={{ transform: `translateX(-${activeIndex * 100}%)` }}
+            >
+              {safeImages.map((image, index) => (
+                <div key={`${image}-${index}`} className="relative h-full min-w-full">
+                  <Image
+                    src={image}
+                    alt={`${imageAlt} ${index + 1}`}
+                    fill
+                    sizes="100vw"
+                    className="object-contain"
+                    priority={index === activeIndex}
+                  />
+                </div>
+              ))}
+            </div>
             {safeImages.length > 1 ? (
               <>
                 <button
                   type="button"
                   onClick={goToPreviousImage}
-                  className="brand-chip absolute left-3 top-1/2 -translate-y-1/2 rounded-full px-3 py-3 text-sm font-semibold text-ink"
+                  className="brand-chip absolute left-2 top-1/2 -translate-y-1/2 rounded-full px-3 py-3 text-sm font-semibold text-ink sm:left-3"
                   aria-label="Imagem anterior"
                 >
                   ‹
@@ -193,7 +224,7 @@ export function ImagePreviewModal({
                 <button
                   type="button"
                   onClick={goToNextImage}
-                  className="brand-chip absolute right-3 top-1/2 -translate-y-1/2 rounded-full px-3 py-3 text-sm font-semibold text-ink"
+                  className="brand-chip absolute right-2 top-1/2 -translate-y-1/2 rounded-full px-3 py-3 text-sm font-semibold text-ink sm:right-3"
                   aria-label="Proxima imagem"
                 >
                   ›
@@ -215,7 +246,7 @@ export function ImagePreviewModal({
                     key={`${image}-${index}`}
                     type="button"
                     onClick={() => setActiveIndex(index)}
-                    className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border transition ${
+                    className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl border transition sm:h-16 sm:w-16 ${
                       index === activeIndex ? 'border-amber shadow-[0_0_18px_rgba(88,200,255,0.25)]' : 'border-white/10'
                     }`}
                     aria-label={`Abrir imagem ${index + 1}`}

@@ -259,20 +259,22 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="panel flex max-h-[95vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[28px] sm:rounded-[28px]">
-        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6">
+      <div className="panel flex h-[100dvh] w-full flex-col overflow-hidden rounded-none sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-5xl sm:rounded-[28px]">
+        <div className="shrink-0 border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">Novo produto</p>
-            <h2 className="font-display text-xl font-semibold text-ink sm:text-2xl">Solicitacao de cadastro</h2>
-            <p className="mt-1 text-sm text-steel">{account.nome}</p>
+            <h2 className="font-display text-lg font-semibold text-ink sm:text-2xl">Solicitacao de cadastro</h2>
+            <p className="mt-1 text-xs text-steel sm:text-sm">{account.nome}</p>
           </div>
           <button type="button" onClick={handleClose} className="brand-chip shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-ink">
             Fechar
           </button>
+          </div>
         </div>
 
-        <div className="brand-scrollbar flex-1 space-y-6 overflow-y-auto px-4 py-4 sm:px-6">
-          <div className="grid gap-4 sm:grid-cols-2">
+        <div className="brand-scrollbar flex-1 space-y-5 overflow-y-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:space-y-6 sm:px-6">
+          <div className="grid gap-4 lg:grid-cols-2">
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
               Loja
               <select
@@ -312,7 +314,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             />
           </label>
 
-          <section className="space-y-3 rounded-3xl border border-white/10 p-4">
+          <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Tamanhos</p>
             <div className="grid gap-4">
               {options.sizeGroups.map((group) => (
@@ -351,7 +353,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             />
           </label>
 
-          <section className="space-y-3 rounded-3xl border border-white/10 p-4">
+          <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Variacoes</p>
             <div className="flex gap-2">
               <button
@@ -406,7 +408,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             )}
           </section>
 
-          <section className="space-y-3 rounded-3xl border border-white/10 p-4">
+          <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Imagens</p>
             <p className="text-sm text-steel">
               {isMobile ? 'No celular voce pode enviar imagens da galeria ou abrir a camera.' : 'No computador envie as imagens do produto.'}
@@ -452,10 +454,10 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             </div>
 
             {selectedImages.length > 0 ? (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {selectedImages.map((image, index) => (
                   <div key={`${image.file.name}-${index}`} className="brand-chip rounded-2xl p-3">
-                    <div className="relative h-36 overflow-hidden rounded-2xl border border-white/10 bg-night/50">
+                    <div className="relative h-28 overflow-hidden rounded-2xl border border-white/10 bg-night/50 sm:h-36">
                       <Image src={image.previewUrl} alt={image.file.name} fill className="object-cover" unoptimized />
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3">
@@ -502,7 +504,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
           ) : null}
         </div>
 
-        <div className="border-t border-white/10 px-4 py-4 sm:px-6">
+        <div className="shrink-0 border-t border-white/10 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-6 sm:py-4">
           <div className="grid gap-3 sm:flex sm:flex-row sm:justify-end">
             <button type="button" onClick={handleClose} className="brand-chip rounded-full px-5 py-3 text-sm font-semibold text-ink">
               Cancelar
