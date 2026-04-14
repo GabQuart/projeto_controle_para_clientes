@@ -1,5 +1,10 @@
 export type ProductRequestVariationType = 'cores' | 'estampas'
 
+export type ProductRequestSizeMeasureEntry = {
+  size: string
+  measurement: string
+}
+
 export type ProductRequestSizeOption = {
   code: string
   label: string

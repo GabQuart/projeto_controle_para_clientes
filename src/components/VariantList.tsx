@@ -17,6 +17,12 @@ function getVariantStatusChip(variant: CatalogVariant) {
   return <span className="inline-flex rounded-full border border-pine/35 bg-pine/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-pine">Ativa</span>
 }
 
+function getVariantDisplayLabel(variant: CatalogVariant) {
+  const colorLabel = variant.cor || variant.variacao || 'Sem cor'
+  const sizeLabel = variant.tamanho || 'Sem tamanho'
+  return `${colorLabel} | ${sizeLabel}`
+}
+
 function VariantActionRow({
   product,
   variant,
@@ -33,12 +39,9 @@ function VariantActionRow({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className={`min-w-0 space-y-2 ${isInactive ? 'opacity-85' : ''}`}>
           <div className="flex flex-wrap items-center gap-2">
-            <p className={`break-all text-sm font-semibold ${isInactive ? 'text-slate-200' : 'text-ink'}`}>SKU: {variant.sku}</p>
+            <p className={`break-all text-sm font-semibold ${isInactive ? 'text-slate-200' : 'text-ink'}`}>{getVariantDisplayLabel(variant)}</p>
             {getVariantStatusChip(variant)}
           </div>
-          <p className={`text-sm ${isInactive ? 'text-slate-400' : 'text-steel'}`}>
-            {[variant.variacao || variant.cor, variant.tamanho].filter(Boolean).join(' | ') || 'Sem detalhamento adicional'}
-          </p>
         </div>
         <ActionSelector onSelect={({ requestedAction, quantity }) => onAction({ product, variant, requestedAction, quantity })} />
       </div>

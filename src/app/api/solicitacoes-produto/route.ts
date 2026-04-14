@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedAccount } from '@/lib/services/account.service'
 import { createProductRequest, getProductRequestOptions } from '@/lib/services/product-request.service'
-import type { ProductRequestVariationType } from '@/types/product-request'
+import type { ProductRequestSizeMeasureEntry, ProductRequestVariationType } from '@/types/product-request'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +16,27 @@ function parseStringArray(rawValue: FormDataEntryValue | null) {
   try {
     const parsed = JSON.parse(rawValue) as unknown
     return Array.isArray(parsed) ? parsed.map((value) => String(value)) : []
+  } catch {
+    return []
+  }
+}
+
+function parseSizeChartEntries(rawValue: FormDataEntryValue | null) {
+  if (typeof rawValue !== 'string') {
+    return [] as ProductRequestSizeMeasureEntry[]
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue) as unknown
+
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return parsed.map((entry) => ({
+      size: String((entry as { size?: unknown }).size ?? ''),
+      measurement: String((entry as { measurement?: unknown }).measurement ?? ''),
+    }))
   } catch {
     return []
   }
@@ -46,6 +67,7 @@ export async function POST(request: Request) {
     }
 
     const formData = await request.formData()
+    const rawProductCost = String(formData.get('productCost') ?? '').trim()
     const images = formData
       .getAll('images')
       .filter((entry): entry is File => entry instanceof File && entry.size > 0)
@@ -74,9 +96,9 @@ export async function POST(request: Request) {
       account,
       store: String(formData.get('store') ?? ''),
       productName: String(formData.get('productName') ?? ''),
-      productCost: Number(formData.get('productCost') ?? 0),
+      productCost: rawProductCost ? Number(rawProductCost) : Number.NaN,
       sizes: parseStringArray(formData.get('sizes')),
-      sizeChart: String(formData.get('sizeChart') ?? ''),
+      sizeChartEntries: parseSizeChartEntries(formData.get('sizeChartEntries')),
       variationType: String(formData.get('variationType') ?? 'cores') as ProductRequestVariationType,
       variations: parseStringArray(formData.get('variations')),
       notes: String(formData.get('notes') ?? ''),

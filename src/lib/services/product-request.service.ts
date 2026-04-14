@@ -13,6 +13,7 @@ import type {
   ProductRequestOptions,
   ProductRequestRecord,
   ProductRequestSizeGroup,
+  ProductRequestSizeMeasureEntry,
   ProductRequestSizeOption,
   ProductRequestVariationType,
 } from '@/types/product-request'
@@ -74,7 +75,7 @@ type CreateProductRequestInput = {
   productName: string
   productCost: number
   sizes: string[]
-  sizeChart: string
+  sizeChartEntries: ProductRequestSizeMeasureEntry[]
   variationType: ProductRequestVariationType
   variations: string[]
   notes?: string
@@ -120,14 +121,52 @@ function getSizeGroupId(size: ProductRequestSizeOption): ProductRequestSizeGroup
 
 function getSizeGroupLabel(groupId: ProductRequestSizeGroup['id']) {
   if (groupId === 'sapato') {
-    return 'Sapato'
+    return 'Calcado'
   }
 
   if (groupId === 'infantil') {
-    return 'Infantil'
+    return 'Infantil Bebe'
   }
 
-  return 'Adulto'
+  return 'Adulto e Plus size'
+}
+
+const APPAREL_SIZE_ORDER = [
+  'RN',
+  'BB',
+  'PPP',
+  'PP',
+  'P',
+  'M',
+  'G',
+  'GG',
+  'XG',
+  'XGG',
+  'XXG',
+  'EXG',
+  'EG',
+  'G1',
+  'G2',
+  'G3',
+  'G4',
+  'UN',
+  'U',
+  'UNICO',
+] as const
+
+function normalizeSizeToken(value: string) {
+  return normalizeText(value).replace(/\s+/g, '').toUpperCase()
+}
+
+function parseSizeNumber(value: string) {
+  const match = normalizeSizeToken(value).match(/^(\d+)/)
+  return match ? Number(match[1]) : Number.NaN
+}
+
+function getApparelSizeRank(value: string) {
+  const normalized = normalizeSizeToken(value)
+  const rank = APPAREL_SIZE_ORDER.indexOf(normalized as (typeof APPAREL_SIZE_ORDER)[number])
+  return rank >= 0 ? rank : Number.POSITIVE_INFINITY
 }
 
 function sortSizeOptions(items: ProductRequestSizeOption[]) {
@@ -138,6 +177,25 @@ function sortSizeOptions(items: ProductRequestSizeOption[]) {
 
     if (bothNumeric) {
       return leftNumeric - rightNumeric
+    }
+
+    const leftNumberInCode = parseSizeNumber(left.code || left.label)
+    const rightNumberInCode = parseSizeNumber(right.code || right.label)
+    const bothStartWithNumber = Number.isFinite(leftNumberInCode) && Number.isFinite(rightNumberInCode)
+
+    if (bothStartWithNumber) {
+      if (leftNumberInCode !== rightNumberInCode) {
+        return leftNumberInCode - rightNumberInCode
+      }
+
+      return left.label.localeCompare(right.label, 'pt-BR')
+    }
+
+    const leftRank = getApparelSizeRank(left.code || left.label)
+    const rightRank = getApparelSizeRank(right.code || right.label)
+
+    if (leftRank !== rightRank) {
+      return leftRank - rightRank
     }
 
     return left.label.localeCompare(right.label, 'pt-BR')
@@ -260,6 +318,51 @@ function validateImages(images: ProductRequestImageUpload[]) {
   return images
 }
 
+function validateSizeChartEntries(sizes: string[], entries: ProductRequestSizeMeasureEntry[]) {
+  const selectedSizes = unique(sizes)
+  const normalizedEntries = entries
+    .map((entry) => ({
+      size: compactText(entry.size),
+      measurement: compactText(entry.measurement),
+    }))
+    .filter((entry) => entry.size && entry.measurement)
+
+  const entryMap = new Map<string, string[]>()
+
+  normalizedEntries.forEach((entry) => {
+    const current = entryMap.get(entry.size) ?? []
+    current.push(entry.measurement)
+    entryMap.set(entry.size, current)
+  })
+
+  const missingSizes = selectedSizes.filter((size) => (entryMap.get(size) ?? []).length === 0)
+
+  if (missingSizes.length > 0) {
+    throw new Error(`Preencha a tabela de medidas para: ${missingSizes.join(', ')}.`)
+  }
+
+  return selectedSizes.flatMap((size) =>
+    (entryMap.get(size) ?? []).map((measurement) => ({
+      size,
+      measurement,
+    })),
+  )
+}
+
+function serializeSizeChart(entries: ProductRequestSizeMeasureEntry[]) {
+  const groupedEntries = new Map<string, string[]>()
+
+  entries.forEach((entry) => {
+    const current = groupedEntries.get(entry.size) ?? []
+    current.push(entry.measurement)
+    groupedEntries.set(entry.size, current)
+  })
+
+  return Array.from(groupedEntries.entries())
+    .map(([size, measurements]) => `${size}: ${measurements.join(' | ')}`)
+    .join('\n')
+}
+
 function buildSheetRow(record: ProductRequestRecord) {
   return [
     record.id,
@@ -363,7 +466,7 @@ function buildProductRequestDetail(row: ProductRequestSheetRow) {
   }
 
   if (notes) {
-    parts.push(`Obs.: ${notes}`)
+    parts.push(`Material: ${notes}`)
   }
 
   return parts.join(' | ') || 'Solicitacao de novo produto registrada.'
@@ -486,9 +589,10 @@ export async function createProductRequest(input: CreateProductRequestInput) {
 
   const store = validateStore(input.store, input.account)
   const productName = compactText(input.productName)
-  const sizeChart = compactText(input.sizeChart)
   const notes = compactText(input.notes ?? '')
   const sizes = unique(input.sizes)
+  const sizeChartEntries = validateSizeChartEntries(sizes, input.sizeChartEntries)
+  const sizeChart = serializeSizeChart(sizeChartEntries)
   const variationType = input.variationType
   const variations = validateVariationValues(input.variations, variationType)
   const images = validateImages(input.images)
@@ -500,10 +604,6 @@ export async function createProductRequest(input: CreateProductRequestInput) {
 
   if (sizes.length === 0) {
     throw new Error('Selecione ao menos um tamanho.')
-  }
-
-  if (!sizeChart) {
-    throw new Error('Preencha a tabela de medidas.')
   }
 
   const id = createSimpleId('sol_produto')

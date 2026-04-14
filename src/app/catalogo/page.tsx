@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActionModal, type CompletedCatalogAction } from '@/components/ActionModal'
 import { AlertModal } from '@/components/AlertModal'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
@@ -96,6 +96,9 @@ export default function CatalogoPage() {
   const [alertMessage, setAlertMessage] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
   const [newProductRequestOpen, setNewProductRequestOpen] = useState(false)
+  const [actionRefreshing, setActionRefreshing] = useState(false)
+  const [refreshNonce, setRefreshNonce] = useState(0)
+  const forceRefreshRef = useRef(false)
 
   useEffect(() => {
     async function loadSession() {
@@ -121,13 +124,12 @@ export default function CatalogoPage() {
     loadSession()
   }, [router])
 
-  useEffect(() => {
-    if (!account) {
-      return
-    }
+  const loadCatalog = useCallback(
+    async (input: { signal?: AbortSignal; forceRefresh?: boolean } = {}) => {
+      if (!account) {
+        return
+      }
 
-    const controller = new AbortController()
-    const timeout = window.setTimeout(async () => {
       setLoading(true)
       setError('')
 
@@ -145,8 +147,12 @@ export default function CatalogoPage() {
           params.set('fornecedor', fornecedorFilter)
         }
 
+        if (input.forceRefresh) {
+          params.set('refresh', 'true')
+        }
+
         const response = await fetch(`/api/catalogo?${params.toString()}`, {
-          signal: controller.signal,
+          signal: input.signal,
           cache: 'no-store',
         })
         const payload = await response.json()
@@ -174,14 +180,28 @@ export default function CatalogoPage() {
         }
       } finally {
         setLoading(false)
+        setActionRefreshing(false)
+        forceRefreshRef.current = false
       }
+    },
+    [account, currentPage, fornecedorFilter, router, search, statusFilter],
+  )
+
+  useEffect(() => {
+    if (!account) {
+      return
+    }
+
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => {
+      loadCatalog({ signal: controller.signal, forceRefresh: forceRefreshRef.current })
     }, 250)
 
     return () => {
       controller.abort()
       window.clearTimeout(timeout)
     }
-  }, [account, currentPage, fornecedorFilter, router, search, statusFilter])
+  }, [account, loadCatalog, refreshNonce])
 
   const summary = useMemo(() => {
     const variants = products.reduce((total, product) => total + product.variacoes.length, 0)
@@ -273,6 +293,9 @@ export default function CatalogoPage() {
     )
     setQueuedCount((current) => current + 1)
     setSelectedItem(null)
+    forceRefreshRef.current = true
+    setActionRefreshing(true)
+    setRefreshNonce((current) => current + 1)
   }
 
   async function handleLogout() {
@@ -417,7 +440,10 @@ export default function CatalogoPage() {
         onSuccessMessage={(message) => setAlertMessage(message)}
       />
       <AlertModal open={Boolean(alertMessage)} message={alertMessage} onClose={() => setAlertMessage('')} />
-      <LoadingOverlay open={loading || loggingOut} label={loggingOut ? 'Saindo da conta...' : 'Carregando dados...'} />
+      <LoadingOverlay
+        open={loading || loggingOut || actionRefreshing}
+        label={loggingOut ? 'Saindo da conta...' : actionRefreshing ? 'Atualizando produto...' : 'Carregando dados...'}
+      />
     </main>
   )
 }

@@ -10,8 +10,8 @@ const LABELS: Record<RequestHistoryStatus, string> = {
 }
 
 const STYLES: Record<RequestHistoryStatus, string> = {
-  pendente: 'border-amber/35 bg-amber/10 text-amber',
-  nao_concluido: 'border-amber/35 bg-amber/10 text-amber',
+  pendente: 'border-[#ffd54a]/55 bg-[#ffd54a]/12 text-[#ffd54a] shadow-[0_0_18px_rgba(255,213,74,0.18)]',
+  nao_concluido: 'border-clay/35 bg-clay/10 text-clay',
   em_andamento: 'border-cobalt/40 bg-cobalt/15 text-[#96c4ff]',
   concluido: 'border-pine/35 bg-pine/10 text-pine',
   cancelado: 'border-clay/35 bg-clay/10 text-clay',

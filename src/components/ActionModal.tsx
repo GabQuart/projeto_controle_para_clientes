@@ -2,6 +2,7 @@
 
 import type { FormEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
+import { LoadingOverlay } from '@/components/LoadingOverlay'
 import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
 import type { UserAccount } from '@/types/account'
 import type { ChangeRequestType, RequestedCatalogAction } from '@/types/request'
@@ -84,6 +85,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
   const currentOperator = operator
   const needsStock = currentItem.requestedAction === 'ativar'
   const canPickVariants = currentItem.requestedAction === 'ativar' && !currentItem.variant && selectableVariants.length > 1
+  const processingLabel = currentItem.requestedAction === 'inativar' ? 'Processando inativacao...' : 'Processando ativacao...'
 
   function toggleVariantSelection(sku: string) {
     setSelectedVariantSkus((current) =>
@@ -151,8 +153,9 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="panel flex max-h-[calc(100dvh-0.75rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[28px]">
+    <>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+        <div className="panel flex max-h-[calc(100dvh-0.75rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-[28px] sm:max-h-[calc(100dvh-2rem)] sm:rounded-[28px]">
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">
@@ -273,7 +276,9 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
             </div>
           </div>
         </form>
+        </div>
       </div>
-    </div>
+      <LoadingOverlay open={submitting} label={processingLabel} />
+    </>
   )
 }

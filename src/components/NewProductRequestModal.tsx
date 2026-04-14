@@ -6,12 +6,19 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertModal } from '@/components/AlertModal'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 import type { UserAccount } from '@/types/account'
-import type { ProductRequestOptions, ProductRequestRecord, ProductRequestVariationType } from '@/types/product-request'
+import type {
+  ProductRequestOptions,
+  ProductRequestRecord,
+  ProductRequestSizeMeasureEntry,
+  ProductRequestVariationType,
+} from '@/types/product-request'
 
 type SelectedImage = {
   file: File
   previewUrl: string
 }
+
+type SizeMeasurementMap = Record<string, string[]>
 
 type NewProductRequestModalProps = {
   open: boolean
@@ -47,6 +54,18 @@ function uniqueTrimmed(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
 }
 
+function buildSizeChartEntries(sizes: string[], valuesBySize: SizeMeasurementMap): ProductRequestSizeMeasureEntry[] {
+  return sizes.flatMap((size) =>
+    (valuesBySize[size] ?? [])
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((measurement) => ({
+        size,
+        measurement,
+      })),
+  )
+}
+
 export function NewProductRequestModal({ open, account, onClose, onCreated, onSuccessMessage }: NewProductRequestModalProps) {
   const [options, setOptions] = useState<ProductRequestOptions>(EMPTY_OPTIONS)
   const [loadingOptions, setLoadingOptions] = useState(false)
@@ -58,7 +77,8 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
   const [productName, setProductName] = useState('')
   const [productCost, setProductCost] = useState('')
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
-  const [sizeChart, setSizeChart] = useState('')
+  const [sizeMeasurements, setSizeMeasurements] = useState<SizeMeasurementMap>({})
+  const [expandedSizeGroups, setExpandedSizeGroups] = useState<Record<string, boolean>>({})
   const [variationType, setVariationType] = useState<ProductRequestVariationType>('cores')
   const [selectedColors, setSelectedColors] = useState<string[]>([])
   const [stampFields, setStampFields] = useState<string[]>(createInitialStampFields())
@@ -125,6 +145,24 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
   }, [account, open])
 
   useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    setExpandedSizeGroups((current) => {
+      if (Object.keys(current).length > 0) {
+        return current
+      }
+
+      return {
+        adulto: true,
+        infantil: false,
+        sapato: false,
+      }
+    })
+  }, [open])
+
+  useEffect(() => {
     if (variationType === 'cores') {
       setStampFields(createInitialStampFields())
       return
@@ -134,6 +172,33 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
   }, [variationType])
 
   const filledStampFields = useMemo(() => uniqueTrimmed(stampFields), [stampFields])
+  const orderedSelectedSizes = useMemo(() => {
+    const orderedCodes = options.sizeGroups.flatMap((group) => group.items.map((item) => item.code))
+    return orderedCodes.filter((code) => selectedSizes.includes(code))
+  }, [options.sizeGroups, selectedSizes])
+
+  useEffect(() => {
+    setSizeMeasurements((current) => {
+      const nextEntries = Object.fromEntries(
+        orderedSelectedSizes.map((size) => {
+          const existing = current[size] ?? ['']
+          return [size, ensureTrailingEmptyField(existing)]
+        }),
+      )
+
+      const currentKeys = Object.keys(current)
+      const nextKeys = Object.keys(nextEntries)
+      const isSameShape =
+        currentKeys.length === nextKeys.length &&
+        nextKeys.every((key) => {
+          const currentValues = current[key] ?? []
+          const nextValues = nextEntries[key] ?? []
+          return currentValues.length === nextValues.length && currentValues.every((value, index) => value === nextValues[index])
+        })
+
+      return isSameShape ? current : nextEntries
+    })
+  }, [orderedSelectedSizes])
 
   if (!open || !account) {
     return null
@@ -149,7 +214,8 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
     setProductName('')
     setProductCost('')
     setSelectedSizes([])
-    setSizeChart('')
+    setSizeMeasurements({})
+    setExpandedSizeGroups({})
     setVariationType('cores')
     setSelectedColors([])
     setStampFields(createInitialStampFields())
@@ -165,6 +231,25 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
 
   function toggleSize(size: string) {
     setSelectedSizes((current) => (current.includes(size) ? current.filter((item) => item !== size) : [...current, size]))
+  }
+
+  function toggleSizeGroup(groupId: string) {
+    setExpandedSizeGroups((current) => ({
+      ...current,
+      [groupId]: !current[groupId],
+    }))
+  }
+
+  function handleSizeMeasurementChange(size: string, index: number, value: string) {
+    setSizeMeasurements((current) => {
+      const currentValues = [...(current[size] ?? [''])]
+      currentValues[index] = value
+
+      return {
+        ...current,
+        [size]: ensureTrailingEmptyField(currentValues),
+      }
+    })
   }
 
   function toggleColor(color: string) {
@@ -217,13 +302,38 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
 
     try {
       const variations = variationType === 'cores' ? selectedColors : filledStampFields
+      const sizeChartEntries = buildSizeChartEntries(orderedSelectedSizes, sizeMeasurements)
+
+      if (!productName.trim()) {
+        throw new Error('Informe o titulo do produto.')
+      }
+
+      if (!productCost.trim()) {
+        throw new Error('Informe o custo do produto.')
+      }
+
+      if (selectedSizes.length === 0) {
+        throw new Error('Selecione ao menos um tamanho.')
+      }
+
+      if (selectedImages.length === 0) {
+        throw new Error('Adicione pelo menos uma foto do produto.')
+      }
+
+      const missingMeasurements = orderedSelectedSizes.filter(
+        (size) => !sizeChartEntries.some((entry) => entry.size === size && entry.measurement),
+      )
+
+      if (missingMeasurements.length > 0) {
+        throw new Error(`Preencha a tabela de medidas para: ${missingMeasurements.join(', ')}.`)
+      }
 
       const formData = new FormData()
       formData.set('store', store)
       formData.set('productName', productName)
       formData.set('productCost', productCost)
-      formData.set('sizes', JSON.stringify(selectedSizes))
-      formData.set('sizeChart', sizeChart)
+      formData.set('sizes', JSON.stringify(orderedSelectedSizes))
+      formData.set('sizeChartEntries', JSON.stringify(sizeChartEntries))
       formData.set('variationType', variationType)
       formData.set('variations', JSON.stringify(variations))
       formData.set('notes', notes)
@@ -291,8 +401,9 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
               </select>
             </label>
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-              Nome do produto
+              Titulo do produto <span className="text-clay">*</span>
               <input
+                required
                 value={productName}
                 onChange={(event) => setProductName(event.target.value)}
                 className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
@@ -302,8 +413,9 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
           </div>
 
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-            Custo do produto
+            Custo do produto <span className="text-clay">*</span>
             <input
+              required
               type="number"
               min="0"
               step="0.01"
@@ -315,52 +427,104 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
           </label>
 
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Tamanhos</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Tamanhos <span className="text-clay">*</span></p>
             <div className="grid gap-4">
               {options.sizeGroups.map((group) => (
                 <div key={group.id} className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">{group.label}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {group.items.map((size) => (
-                      <button
-                        key={`${group.id}-${size.code}`}
-                        type="button"
-                        onClick={() => toggleSize(size.code)}
-                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                          selectedSizes.includes(size.code)
-                            ? 'border border-amber/40 bg-amber/10 text-amber'
-                            : 'brand-chip text-ink hover:border-amber/40 hover:text-amber'
-                        }`}
-                        title={size.label}
+                  <button
+                    type="button"
+                    onClick={() => toggleSizeGroup(group.id)}
+                    className="brand-chip flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left"
+                  >
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">{group.label}</span>
+                    <span className="flex items-center gap-3">
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-amber">
+                        {group.items.filter((size) => selectedSizes.includes(size.code)).length}
+                      </span>
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 24 24"
+                        className={`h-4 w-4 text-ink transition ${expandedSizeGroups[group.id] ? 'rotate-180' : ''}`}
                       >
-                        {size.label}
-                      </button>
-                    ))}
-                  </div>
+                        <path d="M12 15.5l-6-6 1.4-1.4 4.6 4.6 4.6-4.6L18 9.5l-6 6z" fill="currentColor" />
+                      </svg>
+                    </span>
+                  </button>
+                  {expandedSizeGroups[group.id] ? (
+                    <div className="flex flex-wrap gap-2">
+                      {group.items.map((size) => (
+                        <button
+                          key={`${group.id}-${size.code}`}
+                          type="button"
+                          onClick={() => toggleSize(size.code)}
+                          className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                            selectedSizes.includes(size.code)
+                              ? 'border border-amber/40 bg-amber/10 text-amber'
+                              : 'brand-chip text-ink hover:border-amber/40 hover:text-amber'
+                          }`}
+                          title={size.label}
+                        >
+                          {size.label}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
           </section>
 
-          <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-            Tabela de medidas
-            <textarea
-              value={sizeChart}
-              onChange={(event) => setSizeChart(event.target.value)}
-              rows={5}
-              className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-              placeholder="Descreva as medidas do produto"
-            />
-          </label>
+          <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Tabela de medidas</p>
+              <p className="text-sm text-steel">Cada tamanho selecionado precisa ter uma medida preenchida.</p>
+            </div>
+
+            {orderedSelectedSizes.length > 0 ? (
+              <div className="brand-scrollbar flex snap-x gap-3 overflow-x-auto pb-2">
+                {orderedSelectedSizes.map((size) => (
+                  <div
+                    key={`measure-${size}`}
+                    className="brand-chip min-w-[220px] snap-start rounded-3xl p-4 sm:min-w-[240px]"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber">Tam. {size}</p>
+                      <span className="text-[11px] uppercase tracking-[0.14em] text-steel">
+                        {sizeMeasurements[size]?.filter((value) => value.trim()).length || 0} medidas
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-3">
+                      {(sizeMeasurements[size] ?? ['']).map((value, index) => (
+                        <input
+                          key={`${size}-${index}`}
+                          value={value}
+                          onChange={(event) => handleSizeMeasurementChange(size, index, event.target.value)}
+                          className="w-full rounded-2xl border border-white/10 bg-night/40 px-4 py-3 text-base text-ink outline-none transition focus:border-amber/40 sm:text-sm"
+                          placeholder={index === 0 ? 'Ex.: Busto 23 cm' : 'Ex.: Comprimento 21 cm'}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="brand-chip rounded-2xl px-4 py-3 text-sm text-steel">
+                Selecione um ou mais tamanhos para montar a tabela de medidas.
+              </div>
+            )}
+          </section>
 
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Variacoes</p>
-            <div className="flex gap-2">
+            <div className="rounded-3xl border border-cobalt/25 bg-cobalt/10 p-3 sm:p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">Tipo de variacao</p>
+              <div className="mt-3 flex gap-2">
               <button
                 type="button"
                 onClick={() => setVariationType('cores')}
                 className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  variationType === 'cores' ? 'border border-amber/40 bg-amber/10 text-amber' : 'brand-chip text-ink'
+                  variationType === 'cores'
+                    ? 'border border-amber/50 bg-amber/15 text-amber shadow-[0_0_20px_rgba(255,196,69,0.12)]'
+                    : 'brand-chip text-ink'
                 }`}
               >
                 Cores
@@ -369,47 +533,56 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                 type="button"
                 onClick={() => setVariationType('estampas')}
                 className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  variationType === 'estampas' ? 'border border-amber/40 bg-amber/10 text-amber' : 'brand-chip text-ink'
+                  variationType === 'estampas'
+                    ? 'border border-amber/50 bg-amber/15 text-amber shadow-[0_0_20px_rgba(255,196,69,0.12)]'
+                    : 'brand-chip text-ink'
                 }`}
               >
                 Estampas
               </button>
+              </div>
             </div>
 
             {variationType === 'cores' ? (
-              <div className="flex flex-wrap gap-2">
-                {options.colors.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    onClick={() => toggleColor(color)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      selectedColors.includes(color)
-                        ? 'border border-amber/40 bg-amber/10 text-amber'
-                        : 'brand-chip text-ink hover:border-amber/40 hover:text-amber'
-                    }`}
-                  >
-                    {color}
-                  </button>
-                ))}
+              <div className="rounded-3xl border border-white/10 bg-night/30 p-3 sm:p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-steel">Selecione as cores</p>
+                <div className="flex flex-wrap gap-2">
+                  {options.colors.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => toggleColor(color)}
+                      className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                        selectedColors.includes(color)
+                          ? 'border border-amber/40 bg-amber/10 text-amber'
+                          : 'brand-chip text-ink hover:border-amber/40 hover:text-amber'
+                      }`}
+                    >
+                      {color}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : (
-              <div className="grid gap-3">
-                {stampFields.map((value, index) => (
-                  <input
-                    key={`stamp-${index}`}
-                    value={value}
-                    onChange={(event) => handleStampChange(index, event.target.value)}
-                    className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-                    placeholder="Ex.: Floral / Azul"
-                  />
-                ))}
+              <div className="rounded-3xl border border-white/10 bg-night/30 p-3 sm:p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-steel">Liste as estampas</p>
+                <div className="grid gap-3">
+                  {stampFields.map((value, index) => (
+                    <input
+                      key={`stamp-${index}`}
+                      value={value}
+                      onChange={(event) => handleStampChange(index, event.target.value)}
+                      className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+                      placeholder="Ex.: Floral / Azul"
+                    />
+                  ))}
+                </div>
               </div>
             )}
           </section>
 
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Imagens</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Imagens <span className="text-clay">*</span></p>
             <p className="text-sm text-steel">
               {isMobile ? 'No celular voce pode enviar imagens da galeria ou abrir a camera.' : 'No computador envie as imagens do produto.'}
             </p>
@@ -473,13 +646,13 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
           </section>
 
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-            Observacoes
+            Material
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={3}
               className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-              placeholder="Campo opcional"
+              placeholder="Ex.: Algodao, viscose, linho..."
             />
           </label>
 
