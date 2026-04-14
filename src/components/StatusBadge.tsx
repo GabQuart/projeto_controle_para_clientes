@@ -1,13 +1,8 @@
-import clsx from 'clsx'
-import type { RequestHistoryStatus } from '@/types/request'
+'use client'
 
-const LABELS: Record<RequestHistoryStatus, string> = {
-  pendente: 'Pendente',
-  nao_concluido: 'Nao concluido',
-  em_andamento: 'Em andamento',
-  concluido: 'Concluido',
-  cancelado: 'Cancelado',
-}
+import clsx from 'clsx'
+import { useTranslations } from '@/components/providers/LocaleProvider'
+import type { RequestHistoryStatus } from '@/types/request'
 
 const STYLES: Record<RequestHistoryStatus, string> = {
   pendente: 'border-[#ffd54a]/55 bg-[#ffd54a]/12 text-[#ffd54a] shadow-[0_0_18px_rgba(255,213,74,0.18)]',
@@ -22,6 +17,16 @@ type StatusBadgeProps = {
 }
 
 export function StatusBadge({ status }: StatusBadgeProps) {
+  const t = useTranslations()
+
+  const labels: Record<RequestHistoryStatus, string> = {
+    pendente: t('statuses.pending'),
+    nao_concluido: t('statuses.notCompleted'),
+    em_andamento: t('statuses.inProgress'),
+    concluido: t('statuses.completed'),
+    cancelado: t('statuses.canceled'),
+  }
+
   return (
     <span
       className={clsx(
@@ -29,7 +34,7 @@ export function StatusBadge({ status }: StatusBadgeProps) {
         STYLES[status],
       )}
     >
-      {LABELS[status]}
+      {labels[status]}
     </span>
   )
 }

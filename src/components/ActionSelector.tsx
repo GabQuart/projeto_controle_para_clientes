@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, type ReactElement } from 'react'
+import { useTranslations } from '@/components/providers/LocaleProvider'
 import type { RequestedCatalogAction } from '@/types/request'
 
 type ActionSelection = {
@@ -34,6 +35,7 @@ type ActionSelectorProps = {
 }
 
 export function ActionSelector({ defaultQuantity, onSelect }: ActionSelectorProps) {
+  const t = useTranslations()
   const [quantity, setQuantity] = useState(defaultQuantity ? String(defaultQuantity) : '')
 
   useEffect(() => {
@@ -54,7 +56,7 @@ export function ActionSelector({ defaultQuantity, onSelect }: ActionSelectorProp
         inputMode="numeric"
         value={quantity}
         onChange={(event) => setQuantity(event.target.value)}
-        placeholder="Qtd. ativar"
+        placeholder={t('actionSelector.quantityPlaceholder')}
         className="brand-chip rounded-full px-4 py-3 text-sm text-ink outline-none placeholder:text-steel focus:border-amber/40"
       />
       {ACTION_OPTIONS.map((option) => (
@@ -67,7 +69,7 @@ export function ActionSelector({ defaultQuantity, onSelect }: ActionSelectorProp
           <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4">
             {option.icon}
           </svg>
-          <span>{option.label}</span>
+          <span>{option.value === 'ativar' ? t('actionSelector.activate') : t('actionSelector.deactivate')}</span>
         </button>
       ))}
     </div>

@@ -5,10 +5,12 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
+import { useTranslations } from '@/components/providers/LocaleProvider'
 
 type AuthMode = 'login' | 'primeiro_acesso'
 
 export default function LoginPage() {
+  const t = useTranslations()
   const router = useRouter()
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
@@ -117,12 +119,12 @@ export default function LoginPage() {
   return (
     <main className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8 lg:flex-row lg:px-8 lg:py-12">
       <section className="order-2 flex-1 rounded-[32px] panel p-5 sm:p-8 lg:order-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Acesso</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">{t('login.sectionLabel')}</p>
         <h1 className="mt-4 max-w-3xl font-display text-3xl font-semibold leading-tight text-ink sm:text-4xl lg:text-5xl">
-          Sistema de controle de produtos e abertura de chamados.
+          {t('login.title')}
         </h1>
         <p className="mt-4 max-w-2xl text-sm text-steel sm:text-base lg:text-lg">
-          Consulte catalogos por loja, acompanhe status de produtos e variacoes e envie solicitacoes operacionais de forma rapida.
+          {t('login.subtitle')}
         </p>
 
         <div className="brand-wordmark-frame brand-glow mt-8 overflow-hidden rounded-[28px] p-3">
@@ -138,30 +140,30 @@ export default function LoginPage() {
 
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           <div className="brand-chip rounded-3xl p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Catalogo</p>
-            <p className="mt-2 text-sm text-steel">Visualize produtos, variacoes e status por loja.</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">{t('login.cards.catalog.title')}</p>
+            <p className="mt-2 text-sm text-steel">{t('login.cards.catalog.description')}</p>
           </div>
           <div className="brand-chip rounded-3xl p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Chamados</p>
-            <p className="mt-2 text-sm text-steel">Abra ativacoes e inativacoes em poucos cliques.</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">{t('login.cards.tickets.title')}</p>
+            <p className="mt-2 text-sm text-steel">{t('login.cards.tickets.description')}</p>
           </div>
           <div className="brand-chip rounded-3xl p-5">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">Historico</p>
-            <p className="mt-2 text-sm text-steel">Acompanhe a fila e o registro das solicitacoes abertas.</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-ink">{t('login.cards.history.title')}</p>
+            <p className="mt-2 text-sm text-steel">{t('login.cards.history.description')}</p>
           </div>
         </div>
       </section>
 
       <section className="order-1 w-full max-w-xl rounded-[32px] panel p-5 sm:p-8 lg:order-2">
         <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">
-          {isFirstAccess ? 'Primeiro acesso' : 'Login'}
-        </p>
-        <h2 className="mt-4 font-display text-2xl font-semibold text-ink sm:text-3xl">
-          {isFirstAccess ? 'Ative sua conta com uma senha' : 'Entre com seu e-mail e senha'}
-        </h2>
-        <p className="mt-3 text-sm text-steel">
-          {isFirstAccess ? 'Use o e-mail liberado para sua conta.' : 'Se ainda nao tem senha, use a aba de primeiro acesso.'}
-        </p>
+            {isFirstAccess ? t('login.firstAccessTab') : t('login.loginTab')}
+          </p>
+          <h2 className="mt-4 font-display text-2xl font-semibold text-ink sm:text-3xl">
+            {isFirstAccess ? t('login.firstAccessTitle') : t('login.loginTitle')}
+          </h2>
+          <p className="mt-3 text-sm text-steel">
+            {isFirstAccess ? t('login.firstAccessDescription') : t('login.loginDescription')}
+          </p>
 
         <div className="mt-6 flex gap-2 rounded-full border border-white/10 bg-night/60 p-1">
           <button
@@ -174,7 +176,7 @@ export default function LoginPage() {
               !isFirstAccess ? 'bg-cobalt text-white' : 'text-steel hover:text-ink'
             }`}
           >
-            Login
+            {t('login.loginTab')}
           </button>
           <button
             type="button"
@@ -186,41 +188,41 @@ export default function LoginPage() {
               isFirstAccess ? 'bg-cobalt text-white' : 'text-steel hover:text-ink'
             }`}
           >
-            Primeiro acesso
+            {t('login.firstAccessTab')}
           </button>
         </div>
 
         <div className="mt-8 space-y-4">
           <label className="flex flex-col gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-steel">
-            E-mail autorizado
+            {t('login.emailLabel')}
             <input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="voce@empresa.com"
+              placeholder={t('login.emailPlaceholder')}
               className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none placeholder:text-steel focus:border-amber/40"
             />
           </label>
 
           <label className="flex flex-col gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-steel">
-            Senha
+            {t('login.passwordLabel')}
             <input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Digite sua senha"
+              placeholder={t('login.passwordPlaceholder')}
               className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none placeholder:text-steel focus:border-amber/40"
             />
           </label>
 
           {isFirstAccess ? (
             <label className="flex flex-col gap-2 text-sm font-semibold uppercase tracking-[0.16em] text-steel">
-              Confirmar senha
+              {t('login.confirmPasswordLabel')}
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="Repita a senha"
+                placeholder={t('login.confirmPasswordPlaceholder')}
                 className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none placeholder:text-steel focus:border-amber/40"
               />
             </label>
@@ -242,22 +244,22 @@ export default function LoginPage() {
             disabled={submitting || !email || !password || (isFirstAccess && !confirmPassword)}
             className="w-full rounded-full bg-cobalt px-5 py-3 text-sm font-bold uppercase tracking-[0.18em] text-white transition hover:bg-[#418dff] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {submitting ? 'Processando...' : isFirstAccess ? 'Criar senha e entrar' : 'Entrar no sistema'}
+            {submitting ? t('common.loading') : isFirstAccess ? t('login.firstAccessButton') : t('login.loginButton')}
           </button>
         </div>
 
         <div className="mt-8 grid gap-3 text-sm sm:flex sm:flex-wrap">
           <Link href="/catalogo" className="brand-chip rounded-full px-4 py-3 text-center text-ink transition hover:border-amber/40 hover:text-amber">
-            Abrir catalogo
+            {t('login.openCatalog')}
           </Link>
           <Link href="/historico" className="brand-chip rounded-full px-4 py-3 text-center text-ink transition hover:border-amber/40 hover:text-amber">
-            Abrir historico
+            {t('login.openHistory')}
           </Link>
         </div>
       </section>
       <LoadingOverlay
         open={submitting}
-        label={isFirstAccess ? 'Criando acesso...' : 'Entrando no sistema...'}
+        label={isFirstAccess ? t('login.processingFirstAccess') : t('login.processingLogin')}
       />
     </main>
   )

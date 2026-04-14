@@ -1,4 +1,7 @@
+'use client'
+
 import clsx from 'clsx'
+import { useTranslations } from '@/components/providers/LocaleProvider'
 
 type SearchBarProps = {
   value: string
@@ -10,12 +13,16 @@ type SearchBarProps = {
 export function SearchBar({
   value,
   onChange,
-  placeholder = 'Buscar por nome ou SKU',
-  label = 'Busca',
+  placeholder,
+  label,
 }: SearchBarProps) {
+  const t = useTranslations()
+  const resolvedPlaceholder = placeholder ?? t('catalog.searchPlaceholder')
+  const resolvedLabel = label ?? t('history.searchLabel')
+
   return (
     <label className="flex w-full flex-col gap-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-steel">{label}</span>
+      <span className="text-xs font-semibold uppercase tracking-[0.22em] text-steel">{resolvedLabel}</span>
       <div className="brand-chip brand-glow flex items-center rounded-2xl px-4 py-3 transition focus-within:border-amber/40">
         <svg aria-hidden="true" viewBox="0 0 24 24" className="mr-3 h-5 w-5 text-amber">
           <path
@@ -26,7 +33,7 @@ export function SearchBar({
         <input
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           className={clsx(
             'w-full border-0 bg-transparent p-0 text-base text-ink outline-none placeholder:text-steel sm:text-sm',
           )}

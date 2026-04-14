@@ -2,7 +2,9 @@
 
 import type { FormEvent } from 'react'
 import { useEffect, useMemo, useState } from 'react'
+import { translateColorLabel, translateVariationValue } from '@/lib/i18n/content'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
+import { useLocale, useTranslations } from '@/components/providers/LocaleProvider'
 import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
 import type { UserAccount } from '@/types/account'
 import type { ChangeRequestType, RequestedCatalogAction } from '@/types/request'
@@ -55,6 +57,8 @@ function getSelectableVariants(item: SelectedCatalogAction | null) {
 }
 
 export function ActionModal({ open, operator, item, onClose, onCreated }: ActionModalProps) {
+  const t = useTranslations()
+  const { locale } = useLocale()
   const [estoqueGeral, setEstoqueGeral] = useState('')
   const [selectedVariantSkus, setSelectedVariantSkus] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -85,7 +89,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
   const currentOperator = operator
   const needsStock = currentItem.requestedAction === 'ativar'
   const canPickVariants = currentItem.requestedAction === 'ativar' && !currentItem.variant && selectableVariants.length > 1
-  const processingLabel = currentItem.requestedAction === 'inativar' ? 'Processando inativacao...' : 'Processando ativacao...'
+  const processingLabel = currentItem.requestedAction === 'inativar' ? t('actionModal.processingDeactivate') : t('actionModal.processingActivate')
 
   function toggleVariantSelection(sku: string) {
     setSelectedVariantSkus((current) =>
@@ -96,16 +100,16 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setSubmitting(true)
-    setFeedback(null)
+      setFeedback(null)
 
     if (selectedVariantSkus.length === 0) {
-      setFeedback({ type: 'error', message: 'Nao existe variacao elegivel para esta acao.' })
+      setFeedback({ type: 'error', message: t('catalog.alerts.noActiveToDeactivate') })
       setSubmitting(false)
       return
     }
 
     if (needsStock && !estoqueGeral) {
-      setFeedback({ type: 'error', message: 'Preencha a quantidade para ativar as variacoes selecionadas.' })
+      setFeedback({ type: 'error', message: t('catalog.alerts.fillQuantity') })
       setSubmitting(false)
       return
     }
@@ -135,7 +139,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
         throw new Error(payload.error || 'Nao foi possivel salvar a solicitacao')
       }
 
-      setFeedback({ type: 'success', message: 'Acao enviada para a fila com sucesso.' })
+      setFeedback({ type: 'success', message: t('actionModal.success') })
       onCreated({
         skuBase: currentItem.product.skuBase,
         updatedVariantSkus: selectedVariantSkus,
@@ -159,7 +163,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">
-              {currentItem.requestedAction === 'ativar' ? 'Confirmar ativacao' : 'Confirmar inativacao'}
+              {currentItem.requestedAction === 'ativar' ? t('actionModal.activateTitle') : t('actionModal.deactivateTitle')}
             </p>
             <h2 className="font-display text-xl font-semibold text-ink sm:text-2xl">{currentItem.product.titulo}</h2>
             <p className="mt-1 break-all text-sm text-steel">
@@ -176,19 +180,19 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
           <div className="brand-scrollbar flex-1 space-y-5 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="brand-chip rounded-2xl p-4 text-sm text-steel">
-                <p><span className="font-semibold text-ink">Loja:</span> {currentItem.product.loja}</p>
-                <p><span className="font-semibold text-ink">SKU:</span> {currentItem.product.skuBase}</p>
-                <p><span className="font-semibold text-ink">Usuario:</span> {currentOperator.nome}</p>
+            <p><span className="font-semibold text-ink">{t('actionModal.store')}:</span> {currentItem.product.loja}</p>
+            <p><span className="font-semibold text-ink">{t('actionModal.sku')}:</span> {currentItem.product.skuBase}</p>
+            <p><span className="font-semibold text-ink">{t('actionModal.user')}:</span> {currentOperator.nome}</p>
               </div>
               <div className="brand-chip rounded-2xl p-4 text-sm text-steel">
-                <p><span className="font-semibold text-ink">Acao:</span> {currentItem.requestedAction === 'ativar' ? 'Ativar' : 'Inativar'}</p>
-                <p><span className="font-semibold text-ink">Variacoes:</span> {selectedVariantSkus.length}</p>
+                <p><span className="font-semibold text-ink">{t('actionModal.action')}:</span> {currentItem.requestedAction === 'ativar' ? t('actionModal.activate') : t('actionModal.deactivate')}</p>
+                <p><span className="font-semibold text-ink">{t('actionModal.variants')}:</span> {selectedVariantSkus.length}</p>
               </div>
             </div>
 
             {needsStock ? (
               <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-                Quantidade
+                {t('actionModal.quantity')}
                 <input
                   type="number"
                   min="0"
@@ -196,7 +200,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
                   inputMode="numeric"
                   value={estoqueGeral}
                   onChange={(event) => setEstoqueGeral(event.target.value)}
-                  placeholder="Ex.: 20"
+                  placeholder={t('actionModal.quantityPlaceholder')}
                   className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
                 />
               </label>
@@ -207,7 +211,7 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Variacoes</p>
-                    <p className="text-sm text-steel">Escolha o que sera ativado.</p>
+                    <p className="text-sm text-steel">{t('actionModal.variantsDescription')}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <button
@@ -215,14 +219,14 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
                       onClick={() => setSelectedVariantSkus(selectableVariants.map((variant) => variant.sku))}
                       className="brand-chip rounded-full px-3 py-2 text-xs font-semibold text-ink"
                     >
-                      Selecionar todas
+                      {t('actionModal.selectAll')}
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedVariantSkus([])}
                       className="brand-chip rounded-full px-3 py-2 text-xs font-semibold text-ink"
                     >
-                      Limpar
+                      {t('actionModal.clear')}
                     </button>
                   </div>
                 </div>
@@ -239,7 +243,12 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
                       <span className="min-w-0">
                         <span className="block break-all font-semibold">{variant.sku}</span>
                         <span className="block text-steel">
-                          {[variant.cor || variant.variacao, variant.tamanho].filter(Boolean).join(' | ') || 'Sem detalhamento adicional'}
+                          {[
+                            translateColorLabel(variant.cor || '', locale) || translateVariationValue(variant.variacao || '', locale),
+                            variant.tamanho,
+                          ]
+                            .filter(Boolean)
+                            .join(' | ') || t('actionModal.noAdditionalDetails')}
                         </span>
                       </span>
                     </label>
@@ -249,8 +258,8 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
             ) : (
               <div className="brand-chip rounded-2xl p-4 text-sm text-steel">
                 {selectedVariantSkus.length === 1
-                  ? `Variacao selecionada: ${selectedVariantSkus[0]}`
-                  : `${selectedVariantSkus.length} variacao(oes) selecionada(s)`}
+                  ? t('actionModal.selectedVariant', { sku: selectedVariantSkus[0] })
+                  : t('actionModal.selectedVariants', { count: selectedVariantSkus.length })}
               </div>
             )}
 
@@ -264,14 +273,14 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
           <div className="border-t border-white/10 px-4 py-4 sm:px-6">
             <div className="grid gap-3 sm:flex sm:flex-row sm:justify-end">
               <button type="button" onClick={onClose} className="brand-chip rounded-full px-5 py-3 text-sm font-semibold text-ink">
-                Cancelar
+                {t('common.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="rounded-full bg-cobalt px-5 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#418dff] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {submitting ? 'Enviando...' : currentItem.requestedAction === 'ativar' ? 'Confirmar ativacao' : 'Confirmar inativacao'}
+                {submitting ? t('actionModal.sending') : currentItem.requestedAction === 'ativar' ? t('actionModal.submitActivate') : t('actionModal.submitDeactivate')}
               </button>
             </div>
           </div>

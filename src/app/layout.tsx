@@ -2,8 +2,12 @@ import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
 import Image from 'next/image'
 import Link from 'next/link'
+import { cookies } from 'next/headers'
 import { Oxanium, Sora } from 'next/font/google'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
+import { LocaleProvider } from '@/components/providers/LocaleProvider'
 import { getAuthenticatedAccount } from '@/lib/services/account.service'
+import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, getMessages, isSupportedLocale, resolveMessage, type AppLocale } from '@/lib/i18n/messages'
 import './globals.css'
 
 const sora = Sora({
@@ -29,7 +33,7 @@ export const viewport: Viewport = {
 const NAV_ITEMS = [
   {
     href: '/login',
-    label: 'Login',
+    labelKey: 'layout.nav.login',
     adminOnly: false,
     icon: (
       <path
@@ -40,7 +44,7 @@ const NAV_ITEMS = [
   },
   {
     href: '/catalogo',
-    label: 'Catalogo',
+    labelKey: 'layout.nav.catalog',
     adminOnly: false,
     icon: (
       <path
@@ -51,7 +55,7 @@ const NAV_ITEMS = [
   },
   {
     href: '/historico',
-    label: 'Historico',
+    labelKey: 'layout.nav.history',
     adminOnly: false,
     icon: (
       <path
@@ -62,7 +66,7 @@ const NAV_ITEMS = [
   },
   {
     href: '/contas',
-    label: 'Contas',
+    labelKey: 'layout.nav.accounts',
     adminOnly: true,
     icon: (
       <path
@@ -74,57 +78,67 @@ const NAV_ITEMS = [
 ]
 
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const cookieStore = await cookies()
+  const rawLocale = cookieStore.get(LOCALE_COOKIE_NAME)?.value ?? DEFAULT_LOCALE
+  const locale: AppLocale = isSupportedLocale(rawLocale) ? rawLocale : DEFAULT_LOCALE
+  const isRtl = locale === 'ar'
+  const t = getMessages(locale)
   const account = await getAuthenticatedAccount().catch(() => null)
   const visibleNavItems = NAV_ITEMS.filter((item) => !item.adminOnly || account?.role === 'admin')
 
   return (
-    <html lang="pt-BR">
+    <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'}>
       <body className={`${sora.variable} ${oxanium.variable} font-sans`}>
-        <div className="grid-shell min-h-screen">
-          <header className="sticky top-0 z-40 border-b border-white/5 bg-slate/80 backdrop-blur-xl">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-              <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-center gap-4">
-                  <Link href="/catalogo" className="flex items-center gap-4">
-                    <div className="brand-glow flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-cobalt/30 bg-night/70 shadow-[0_0_28px_rgba(72,146,255,0.32)]">
-                      <Image
-                        src="/branding/m3rcadeo-header-seal.png"
-                        alt="Logo M3rcadeo"
-                        width={160}
-                        height={160}
-                        className="h-full w-full object-cover"
-                        priority
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-display text-xl font-semibold uppercase tracking-[0.26em] text-ink sm:text-2xl">
-                        M3rcadeo
-                      </p>
-                      <p className="text-xs uppercase tracking-[0.28em] text-steel">Operacao de marketplaces</p>
-                    </div>
-                  </Link>
-                </div>
-
-                <nav className="brand-scrollbar -mx-1 flex w-full gap-2 overflow-x-auto px-1 pb-1 text-sm font-medium text-steel lg:mx-0 lg:w-auto lg:flex-wrap lg:justify-end lg:overflow-visible lg:px-0 lg:pb-0">
-                  {visibleNavItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="brand-chip flex shrink-0 items-center gap-2 rounded-full px-4 py-2.5 transition hover:border-amber/40 hover:text-ink"
-                    >
-                      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-amber">
-                        {item.icon}
-                      </svg>
-                      <span>{item.label}</span>
+        <LocaleProvider initialLocale={locale}>
+          <div className="grid-shell min-h-screen">
+            <header className="sticky top-0 z-40 border-b border-white/5 bg-slate/80 backdrop-blur-xl">
+              <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <Link href="/catalogo" className="flex min-w-0 items-center gap-4">
+                      <div className="brand-glow flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-cobalt/30 bg-night/70 shadow-[0_0_28px_rgba(72,146,255,0.32)]">
+                        <Image
+                          src="/branding/m3rcadeo-header-seal.png"
+                          alt="Logo M3rcadeo"
+                          width={160}
+                          height={160}
+                          className="h-full w-full object-cover"
+                          priority
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-display text-lg font-semibold uppercase tracking-[0.22em] text-ink sm:text-xl lg:text-2xl">
+                          {t.layout.brandName}
+                        </p>
+                        <p className="truncate text-[10px] uppercase tracking-[0.22em] text-steel sm:text-xs sm:tracking-[0.28em]">{t.layout.tagline}</p>
+                      </div>
                     </Link>
-                  ))}
-                </nav>
+                  </div>
+
+                  <div className="flex w-full min-w-0 flex-col gap-2 sm:gap-3 lg:w-auto lg:items-end">
+                    <LanguageSwitcher />
+                    <nav className="brand-scrollbar -mx-1 flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 text-[11px] font-medium text-steel sm:justify-end sm:text-sm lg:mx-0 lg:w-auto lg:flex-wrap lg:justify-end lg:overflow-visible lg:px-0 lg:pb-0">
+                      {visibleNavItems.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          className="brand-chip flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-2.5 py-2 text-[11px] transition hover:border-amber/40 hover:text-ink sm:px-4 sm:py-2.5 sm:text-sm"
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-amber">
+                            {item.icon}
+                          </svg>
+                          <span className="whitespace-nowrap">{String(resolveMessage(locale, item.labelKey) ?? item.href)}</span>
+                        </Link>
+                      ))}
+                    </nav>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className="brand-line" />
-          </header>
-          {children}
-        </div>
+              <div className="brand-line" />
+            </header>
+            {children}
+          </div>
+        </LocaleProvider>
       </body>
     </html>
   )

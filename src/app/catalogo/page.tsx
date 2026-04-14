@@ -9,6 +9,7 @@ import { LoadingOverlay } from '@/components/LoadingOverlay'
 import { NewProductRequestModal } from '@/components/NewProductRequestModal'
 import { PaginationControls } from '@/components/PaginationControls'
 import { ProductTable } from '@/components/ProductTable'
+import { useTranslations } from '@/components/providers/LocaleProvider'
 import { SearchBar } from '@/components/SearchBar'
 import type { UserAccount } from '@/types/account'
 import type { CatalogPagination, CatalogProduct, CatalogStatusFilter, CatalogVariant } from '@/types/catalog'
@@ -80,6 +81,7 @@ function deriveProductStatus(product: CatalogProduct): CatalogProduct {
 }
 
 export default function CatalogoPage() {
+  const t = useTranslations()
   const router = useRouter()
   const [account, setAccount] = useState<UserAccount | null>(null)
   const [products, setProducts] = useState<CatalogProduct[]>([])
@@ -211,15 +213,15 @@ export default function CatalogoPage() {
 
   const accountScopeLabel = useMemo(() => {
     if (!account) {
-      return 'Carregando...'
+      return t('catalog.accountScope.loading')
     }
 
     if (account.role === 'admin') {
-      return 'Todas as lojas'
+      return t('catalog.accountScope.allStores')
     }
 
-    return account.access.lojas[0] || account.access.clienteCods[0] || 'Minha loja'
-  }, [account])
+    return account.access.lojas[0] || account.access.clienteCods[0] || t('catalog.accountScope.myStore')
+  }, [account, t])
 
   const fornecedorOptions = useMemo(() => {
     if (!account || account.access.scopeType !== 'fornecedor_prefix') {
@@ -253,14 +255,22 @@ export default function CatalogoPage() {
     const eligibleVariants = getEligibleVariants(input, input.requestedAction)
 
     if (eligibleVariants.length === 0) {
-      const message = getBlockedActionMessage(input, input.requestedAction)
+      const isVariantAction = Boolean(input.variant)
+      const message =
+        input.requestedAction === 'ativar'
+          ? isVariantAction
+            ? t('catalog.alerts.selectedVariantAlreadyActive')
+            : t('catalog.alerts.noInactiveToActivate')
+          : isVariantAction
+            ? t('catalog.alerts.selectedVariantAlreadyInactive')
+            : t('catalog.alerts.noActiveToDeactivate')
       setError(message)
       setAlertMessage(message)
       return
     }
 
     if (input.requestedAction === 'ativar' && (!input.quantity || input.quantity <= 0)) {
-      const message = 'Preencha a quantidade antes de ativar.'
+      const message = t('catalog.alerts.fillQuantity')
       setError(message)
       setAlertMessage(message)
       return
@@ -317,16 +327,16 @@ export default function CatalogoPage() {
       <section className="panel rounded-[32px] p-5 sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Painel operacional</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">{t('catalog.panelLabel')}</p>
             <h1 className="mt-3 font-display text-2xl font-semibold text-ink sm:text-3xl lg:text-4xl">
-              Catalogo {accountScopeLabel}
+              {t('catalog.title', { scope: accountScopeLabel })}
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-steel sm:text-base">
               {account?.nome ?? 'Carregando...'}
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-steel sm:text-sm">
-              <span className="brand-chip rounded-full px-3 py-1">{account?.role === 'admin' ? 'Admin' : 'Cliente'}</span>
-              <span className="brand-chip rounded-full px-3 py-1">Fila: {queuedCount}</span>
+              <span className="brand-chip rounded-full px-3 py-1">{account?.role === 'admin' ? t('catalog.adminRole') : t('catalog.clientRole')}</span>
+              <span className="brand-chip rounded-full px-3 py-1">{t('catalog.queue', { count: queuedCount })}</span>
             </div>
           </div>
           <div className="grid gap-3 sm:flex sm:flex-wrap">
@@ -335,20 +345,20 @@ export default function CatalogoPage() {
               onClick={() => setNewProductRequestOpen(true)}
               className="rounded-full bg-amber px-4 py-3 text-center text-sm font-semibold text-night transition hover:bg-[#ffd77a]"
             >
-              Adicionar produto
+              {t('catalog.addProduct')}
             </button>
             <Link
               href="/historico"
               className="brand-chip rounded-full px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
             >
-              Ver historico
+              {t('catalog.viewHistory')}
             </Link>
             {account?.role === 'admin' ? (
               <Link
                 href="/contas"
                 className="brand-chip rounded-full px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
               >
-                Gerenciar contas
+                {t('catalog.manageAccounts')}
               </Link>
             ) : null}
             <button
@@ -356,15 +366,15 @@ export default function CatalogoPage() {
               onClick={handleLogout}
               className="rounded-full bg-cobalt px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#418dff]"
             >
-              Sair
+              {t('catalog.logout')}
             </button>
           </div>
         </div>
 
         <div className={`mt-8 grid gap-4 ${fornecedorOptions.length > 0 ? 'xl:grid-cols-[2fr_1fr_1fr_1fr]' : 'xl:grid-cols-[2fr_1fr_1fr]'}`}>
-          <SearchBar value={search} onChange={handleSearchChange} placeholder="Buscar por nome ou SKU" />
+          <SearchBar value={search} onChange={handleSearchChange} placeholder={t('catalog.searchPlaceholder')} label={t('history.searchLabel')} />
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
-            Status
+            {t('catalog.status')}
             <select
               value={statusFilter}
               onChange={(event) => {
@@ -373,15 +383,15 @@ export default function CatalogoPage() {
               }}
               className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
             >
-              <option value="todos" className="bg-slate text-ink">Todos</option>
-              <option value="ativos" className="bg-slate text-ink">Somente ativos</option>
-              <option value="inativos" className="bg-slate text-ink">Somente inativos</option>
-              <option value="com_inativas" className="bg-slate text-ink">Com variacoes inativas</option>
+              <option value="todos" className="bg-slate text-ink">{t('catalog.statusOptions.all')}</option>
+              <option value="ativos" className="bg-slate text-ink">{t('catalog.statusOptions.active')}</option>
+              <option value="inativos" className="bg-slate text-ink">{t('catalog.statusOptions.inactive')}</option>
+              <option value="com_inativas" className="bg-slate text-ink">{t('catalog.statusOptions.withInactive')}</option>
             </select>
           </label>
           {fornecedorOptions.length > 0 ? (
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
-              Fornecedor
+              {t('catalog.supplier')}
               <select
                 value={fornecedorFilter}
                 onChange={(event) => {
@@ -390,7 +400,7 @@ export default function CatalogoPage() {
                 }}
                 className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
               >
-                <option value="todos" className="bg-slate text-ink">Todos os fornecedores</option>
+                <option value="todos" className="bg-slate text-ink">{t('catalog.allSuppliers')}</option>
                 {fornecedorOptions.map((option) => (
                   <option key={option} value={option} className="bg-slate text-ink">
                     {option}
@@ -400,12 +410,12 @@ export default function CatalogoPage() {
             </label>
           ) : null}
           <div className="brand-chip rounded-3xl p-4 text-sm text-steel">
-            <p className="font-semibold uppercase tracking-[0.16em] text-ink">Resumo</p>
+            <p className="font-semibold uppercase tracking-[0.16em] text-ink">{t('catalog.summary')}</p>
             <p className="mt-2">
-              {summary.products} de {summary.totalProducts} produtos
+              {t('catalog.summaryProducts', { current: summary.products, total: summary.totalProducts })}
             </p>
-            <p>{summary.variants} variacoes na pagina</p>
-            <p>{summary.inactiveVariants} inativas</p>
+            <p>{t('catalog.summaryVariants', { count: summary.variants })}</p>
+            <p>{t('catalog.summaryInactiveVariants', { count: summary.inactiveVariants })}</p>
           </div>
         </div>
       </section>
@@ -413,7 +423,7 @@ export default function CatalogoPage() {
       <section className="mt-6">
         {error ? <div className="mb-4 rounded-2xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-clay">{error}</div> : null}
         {loading ? (
-          <div className="panel rounded-3xl p-6 text-sm text-steel">Carregando catalogo...</div>
+          <div className="panel rounded-3xl p-6 text-sm text-steel">{t('catalog.loading')}</div>
         ) : (
           <ProductTable products={products} expandedIds={expandedIds} onToggle={toggleExpanded} onAction={handleOpenAction} />
         )}
@@ -442,7 +452,7 @@ export default function CatalogoPage() {
       <AlertModal open={Boolean(alertMessage)} message={alertMessage} onClose={() => setAlertMessage('')} />
       <LoadingOverlay
         open={loading || loggingOut || actionRefreshing}
-        label={loggingOut ? 'Saindo da conta...' : actionRefreshing ? 'Atualizando produto...' : 'Carregando dados...'}
+        label={loggingOut ? t('catalog.loggingOut') : actionRefreshing ? t('catalog.updatingProduct') : t('catalog.loadingData')}
       />
     </main>
   )

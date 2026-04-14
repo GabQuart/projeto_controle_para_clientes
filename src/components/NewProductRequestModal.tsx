@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertModal } from '@/components/AlertModal'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
+import { useLocale, useTranslations } from '@/components/providers/LocaleProvider'
+import { translateColorLabel } from '@/lib/i18n/content'
 import type { UserAccount } from '@/types/account'
 import type {
   ProductRequestOptions,
@@ -40,19 +42,22 @@ function createInitialStampFields() {
   return ['']
 }
 
-function getVariationSectionMeta(variationType: ProductRequestVariationType) {
+function getVariationSectionMeta(
+  variationType: ProductRequestVariationType,
+  t: (key: string, values?: Record<string, string | number>) => string,
+) {
   if (variationType === 'variados') {
     return {
-      title: 'Liste os variados',
-      description: 'Adicione aqui as versoes diferentes do produto. Exemplo: Casinha de bonecas.',
-      placeholder: 'Ex.: Casinha de bonecas',
+      title: t('productRequest.listAssorted'),
+      description: t('productRequest.assortedDescription'),
+      placeholder: t('productRequest.assortedPlaceholder'),
     }
   }
 
   return {
-    title: 'Liste as estampas',
-    description: 'Informe cada estampa em uma linha curta. Ex.: Floral / Azul.',
-    placeholder: 'Ex.: Floral / Azul',
+    title: t('productRequest.listStamps'),
+    description: t('productRequest.stampsDescription'),
+    placeholder: t('productRequest.stampsPlaceholder'),
   }
 }
 
@@ -83,6 +88,8 @@ function buildSizeChartEntries(sizes: string[], valuesBySize: SizeMeasurementMap
 }
 
 export function NewProductRequestModal({ open, account, onClose, onCreated, onSuccessMessage }: NewProductRequestModalProps) {
+  const t = useTranslations()
+  const { locale } = useLocale()
   const [options, setOptions] = useState<ProductRequestOptions>(EMPTY_OPTIONS)
   const [loadingOptions, setLoadingOptions] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -188,7 +195,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
   }, [variationType])
 
   const filledStampFields = useMemo(() => uniqueTrimmed(stampFields), [stampFields])
-  const variationSectionMeta = useMemo(() => getVariationSectionMeta(variationType), [variationType])
+  const variationSectionMeta = useMemo(() => getVariationSectionMeta(variationType, t), [t, variationType])
   const orderedSelectedSizes = useMemo(() => {
     const orderedCodes = options.sizeGroups.flatMap((group) => group.items.map((item) => item.code))
     return orderedCodes.filter((code) => selectedSizes.includes(code))
@@ -322,19 +329,19 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
       const sizeChartEntries = buildSizeChartEntries(orderedSelectedSizes, sizeMeasurements)
 
       if (!productName.trim()) {
-        throw new Error('Informe o titulo do produto.')
+        throw new Error(t('productRequest.validation.title'))
       }
 
       if (!productCost.trim()) {
-        throw new Error('Informe o custo do produto.')
+        throw new Error(t('productRequest.validation.cost'))
       }
 
       if (selectedSizes.length === 0) {
-        throw new Error('Selecione ao menos um tamanho.')
+        throw new Error(t('productRequest.validation.sizes'))
       }
 
       if (selectedImages.length === 0) {
-        throw new Error('Adicione pelo menos uma foto do produto.')
+        throw new Error(t('productRequest.validation.images'))
       }
 
       const missingMeasurements = orderedSelectedSizes.filter(
@@ -371,7 +378,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
 
       setCreatedRequest(payload.data as ProductRequestRecord)
       onCreated?.(payload.data as ProductRequestRecord)
-      onSuccessMessage?.('Solicitacao registrada com sucesso.')
+      onSuccessMessage?.(t('productRequest.success'))
       handleClose()
     } catch (error) {
       setFeedback({
@@ -390,12 +397,12 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
         <div className="shrink-0 border-b border-white/10 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">Novo produto</p>
-            <h2 className="font-display text-lg font-semibold text-ink sm:text-2xl">Solicitacao de cadastro</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">{t('productRequest.label')}</p>
+            <h2 className="font-display text-lg font-semibold text-ink sm:text-2xl">{t('productRequest.title')}</h2>
             <p className="mt-1 text-xs text-steel sm:text-sm">{account.nome}</p>
           </div>
           <button type="button" onClick={handleClose} className="brand-chip shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-ink">
-            Fechar
+            {t('common.close')}
           </button>
           </div>
         </div>
@@ -403,7 +410,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
         <div className="brand-scrollbar flex-1 space-y-5 overflow-y-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:space-y-6 sm:px-6">
           <div className="grid gap-4 lg:grid-cols-2">
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-              Loja
+              {t('productRequest.store')}
               <select
                 value={store}
                 onChange={(event) => setStore(event.target.value)}
@@ -418,19 +425,19 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
               </select>
             </label>
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-              Titulo do produto <span className="text-clay">*</span>
+              {t('productRequest.productTitle')} <span className="text-clay">*</span>
               <input
                 required
                 value={productName}
                 onChange={(event) => setProductName(event.target.value)}
                 className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-                placeholder="Digite o nome do produto"
+                placeholder={t('productRequest.productTitlePlaceholder')}
               />
             </label>
           </div>
 
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-            Custo do produto <span className="text-clay">*</span>
+            {t('productRequest.productCost')} <span className="text-clay">*</span>
             <input
               required
               type="number"
@@ -444,7 +451,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
           </label>
 
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Tamanhos <span className="text-clay">*</span></p>
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.sizes')} <span className="text-clay">*</span></p>
             <div className="grid gap-4">
               {options.sizeGroups.map((group) => (
                 <div key={group.id} className="space-y-3">
@@ -493,8 +500,8 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
 
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <div className="flex flex-col gap-1">
-              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Tabela de medidas</p>
-              <p className="text-sm text-steel">Cada tamanho selecionado precisa ter uma medida preenchida.</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.sizeTable')}</p>
+              <p className="text-sm text-steel">{t('productRequest.sizeTableDescription')}</p>
             </div>
 
             {orderedSelectedSizes.length > 0 ? (
@@ -507,7 +514,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber">Tam. {size}</p>
                       <span className="text-[11px] uppercase tracking-[0.14em] text-steel">
-                        {sizeMeasurements[size]?.filter((value) => value.trim()).length || 0} medidas
+                        {t('productRequest.sizeMeasurements', { count: sizeMeasurements[size]?.filter((value) => value.trim()).length || 0 })}
                       </span>
                     </div>
                     <div className="mt-3 grid gap-3">
@@ -517,7 +524,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                           value={value}
                           onChange={(event) => handleSizeMeasurementChange(size, index, event.target.value)}
                           className="w-full rounded-2xl border border-white/10 bg-night/40 px-4 py-3 text-base text-ink outline-none transition focus:border-amber/40 sm:text-sm"
-                          placeholder={index === 0 ? 'Ex.: Busto 23 cm' : 'Ex.: Comprimento 21 cm'}
+                          placeholder={index === 0 ? t('productRequest.sizePlaceholderFirst') : t('productRequest.sizePlaceholderNext')}
                         />
                       ))}
                     </div>
@@ -526,14 +533,14 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
               </div>
             ) : (
               <div className="brand-chip rounded-2xl px-4 py-3 text-sm text-steel">
-                Selecione um ou mais tamanhos para montar a tabela de medidas.
+                {t('productRequest.sizeEmpty')}
               </div>
             )}
           </section>
 
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <div className="rounded-3xl border border-cobalt/25 bg-cobalt/10 p-3 sm:p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">Tipo de variacao</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">{t('productRequest.variationType')}</p>
               <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -544,7 +551,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                     : 'brand-chip text-ink'
                 }`}
               >
-                Cores
+                {t('productRequest.colors')}
               </button>
               <button
                 type="button"
@@ -555,7 +562,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                     : 'brand-chip text-ink'
                 }`}
               >
-                Estampas
+                {t('productRequest.stamps')}
               </button>
               <button
                 type="button"
@@ -566,14 +573,14 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                     : 'brand-chip text-ink'
                 }`}
               >
-                Variados
+                {t('productRequest.assorted')}
               </button>
               </div>
             </div>
 
             {variationType === 'cores' ? (
               <div className="rounded-3xl border border-white/10 bg-night/30 p-3 sm:p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-steel">Selecione as cores</p>
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-steel">{t('productRequest.selectColors')}</p>
                 <div className="flex flex-wrap gap-2">
                   {options.colors.map((color) => (
                     <button
@@ -586,7 +593,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                           : 'brand-chip text-ink hover:border-amber/40 hover:text-amber'
                       }`}
                     >
-                      {color}
+                      {translateColorLabel(color, locale) || color}
                     </button>
                   ))}
                 </div>
@@ -611,9 +618,9 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
           </section>
 
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Imagens <span className="text-clay">*</span></p>
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.images')} <span className="text-clay">*</span></p>
             <p className="text-sm text-steel">
-              {isMobile ? 'No celular voce pode enviar imagens da galeria ou abrir a camera.' : 'No computador envie as imagens do produto.'}
+              {isMobile ? t('productRequest.imagesRequired') : t('productRequest.imagesDesktop')}
             </p>
 
             <div className="flex flex-wrap gap-3">
@@ -630,7 +637,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                 onClick={() => uploadInputRef.current?.click()}
                 className="brand-chip rounded-full px-4 py-3 text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
               >
-                Enviar imagens
+                {t('productRequest.uploadImages')}
               </button>
 
               {isMobile ? (
@@ -649,7 +656,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                     onClick={() => cameraInputRef.current?.click()}
                     className="brand-chip rounded-full px-4 py-3 text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
                   >
-                    Abrir camera
+                    {t('productRequest.openCamera')}
                   </button>
                 </>
               ) : null}
@@ -665,7 +672,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <p className="min-w-0 truncate text-xs text-steel">{image.file.name}</p>
                       <button type="button" onClick={() => removeImage(index)} className="text-xs font-semibold text-clay">
-                        Remover
+                        {t('productRequest.removeImage')}
                       </button>
                     </div>
                   </div>
@@ -675,13 +682,13 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
           </section>
 
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-            Material
+            {t('productRequest.material')}
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={3}
               className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-              placeholder="Ex.: Algodao, viscose, linho..."
+              placeholder={t('productRequest.materialPlaceholder')}
             />
           </label>
 
@@ -709,7 +716,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
         <div className="shrink-0 border-t border-white/10 px-4 py-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:px-6 sm:py-4">
           <div className="grid gap-3 sm:flex sm:flex-row sm:justify-end">
             <button type="button" onClick={handleClose} className="brand-chip rounded-full px-5 py-3 text-sm font-semibold text-ink">
-              Cancelar
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -717,18 +724,18 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
               disabled={submitting || loadingOptions}
               className="rounded-full bg-cobalt px-5 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#418dff] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {submitting ? 'Enviando...' : 'Salvar solicitacao'}
+              {submitting ? t('productRequest.sending') : t('productRequest.saveRequest')}
             </button>
           </div>
         </div>
       </div>
 
-      <LoadingOverlay open={loadingOptions || submitting} label={loadingOptions ? 'Carregando formulario...' : 'Enviando solicitacao...'} />
+      <LoadingOverlay open={loadingOptions || submitting} label={loadingOptions ? t('productRequest.loadingForm') : t('productRequest.sendingRequest')} />
       <AlertModal
         open={Boolean(alertMessage)}
-        title="Falha na solicitacao"
+        title={t('alerts.requestFailure')}
         message={alertMessage}
-        buttonLabel="Entendi"
+        buttonLabel={t('alerts.close')}
         onClose={() => setAlertMessage('')}
       />
     </div>

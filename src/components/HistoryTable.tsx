@@ -1,5 +1,10 @@
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
+import { translateProductRequestDetail } from '@/lib/i18n/content'
+import { useLocale } from '@/components/providers/LocaleProvider'
+import { useTranslations } from '@/components/providers/LocaleProvider'
 import type { RequestHistoryEntry } from '@/types/request'
 import { formatDateTime } from '@/lib/utils/format'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -27,10 +32,13 @@ function getHistoryImageSrc(value?: string) {
 }
 
 export function HistoryTable({ requests }: HistoryTableProps) {
+  const t = useTranslations()
+  const { locale } = useLocale()
+
   if (requests.length === 0) {
     return (
       <div className="panel rounded-3xl p-6 text-sm text-steel">
-        Nenhuma solicitacao encontrada para os filtros atuais.
+        {t('historyTable.noResults')}
       </div>
     )
   }
@@ -57,25 +65,27 @@ export function HistoryTable({ requests }: HistoryTableProps) {
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs text-steel sm:text-sm">
                   <span className="brand-chip rounded-full px-3 py-1">
-                    {request.tipoSolicitacao === 'novo_produto' ? 'Novo produto' : 'Operacional'}
+                    {request.tipoSolicitacao === 'novo_produto' ? t('historyTable.newProduct') : t('historyTable.operational')}
                   </span>
-                  {request.skuBase ? <span className="brand-chip rounded-full px-3 py-1">SKU catalogo: {request.skuBase}</span> : null}
+                  {request.skuBase ? <span className="brand-chip rounded-full px-3 py-1">{t('historyTable.catalogSku', { sku: request.skuBase })}</span> : null}
                   {request.skuVariacao ? (
-                    <span className="brand-chip rounded-full px-3 py-1">SKU: {request.skuVariacao}</span>
+                    <span className="brand-chip rounded-full px-3 py-1">{t('historyTable.sku', { sku: request.skuVariacao })}</span>
                   ) : null}
                   {request.imageCount ? (
-                    <span className="brand-chip rounded-full px-3 py-1">{request.imageCount} imagem(ns)</span>
+                    <span className="brand-chip rounded-full px-3 py-1">{t('historyTable.images', { count: request.imageCount })}</span>
                   ) : null}
                 </div>
                 <p className="text-sm uppercase tracking-[0.18em] text-steel">{request.requestLabel}</p>
-                <p className="text-sm text-ink/80">{request.detalhe}</p>
+                <p className="text-sm text-ink/80">
+                  {request.tipoSolicitacao === 'novo_produto' ? translateProductRequestDetail(request.detalhe, locale) : request.detalhe}
+                </p>
                 {request.folderUrl ? (
                   <Link
                     href={request.folderUrl}
                     target="_blank"
                     className="inline-flex text-xs font-semibold uppercase tracking-[0.18em] text-amber underline-offset-4 hover:underline"
                   >
-                    Abrir pasta das imagens
+                    {t('historyTable.openFolder')}
                   </Link>
                 ) : null}
               </div>

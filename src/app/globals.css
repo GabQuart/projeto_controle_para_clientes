@@ -36,6 +36,25 @@ body {
   color: var(--foreground);
 }
 
+html[lang='zh-CN'] body {
+  font-family:
+    var(--font-sora),
+    'Microsoft YaHei',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Noto Sans SC',
+    sans-serif;
+}
+
+html[lang='ar'] body {
+  font-family:
+    var(--font-sora),
+    Tahoma,
+    'Segoe UI',
+    Arial,
+    sans-serif;
+}
+
 body::before {
   content: '';
   position: fixed;

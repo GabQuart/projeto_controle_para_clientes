@@ -6,6 +6,7 @@ import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
 import type { RequestedCatalogAction } from '@/types/request'
 import { ActionSelector } from '@/components/ActionSelector'
 import { ImagePreviewModal } from '@/components/ImagePreviewModal'
+import { useTranslations } from '@/components/providers/LocaleProvider'
 import { VariantList } from '@/components/VariantList'
 
 type ProductRowProps = {
@@ -29,17 +30,18 @@ function getProductPanelClassName(product: CatalogProduct) {
 
 function getProductStatusLabel(product: CatalogProduct) {
   if (product.status === 'inativo') {
-    return { label: 'Produto inativo', className: 'border-white/15 bg-white/5 text-slate-300' }
+    return { key: 'productRow.productInactive', className: 'border-white/15 bg-white/5 text-slate-300' }
   }
 
   if ((product.inactiveVariantCount ?? 0) > 0) {
-    return { label: 'Produto parcialmente ativo', className: 'border-amber/35 bg-amber/10 text-amber' }
+    return { key: 'productRow.productPartial', className: 'border-amber/35 bg-amber/10 text-amber' }
   }
 
-  return { label: 'Produto ativo', className: 'border-pine/35 bg-pine/10 text-pine' }
+  return { key: 'productRow.productActive', className: 'border-pine/35 bg-pine/10 text-pine' }
 }
 
 export function ProductRow({ product, expanded, onToggle, onAction }: ProductRowProps) {
+  const t = useTranslations()
   const [previewOpen, setPreviewOpen] = useState(false)
   const imageSrc = product.fotoRef || '/placeholder-product.svg'
   const initialGallery = Array.from(new Set([...(product.fotoGaleria ?? []), imageSrc].filter(Boolean))).slice(0, 3)
@@ -55,7 +57,7 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
               type="button"
               onClick={() => setPreviewOpen(true)}
               className="brand-glow group relative h-24 w-full overflow-hidden rounded-2xl border border-white/10 bg-mist text-left transition hover:border-amber/30 sm:h-24 sm:w-24"
-              aria-label={`Ampliar imagem de ${product.titulo}`}
+              aria-label={t('productRow.expandImage', { title: product.titulo })}
             >
               <Image
                 src={imageSrc}
@@ -65,7 +67,7 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
                 className={`object-cover transition duration-300 group-hover:scale-[1.03] ${isFullyInactive ? 'grayscale opacity-70' : ''}`}
               />
               <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-night/90 via-night/35 to-transparent px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white">
-                Ampliar
+                {t('productRow.zoom')}
               </span>
             </button>
             <div className={`min-w-0 space-y-3 ${isFullyInactive ? 'opacity-85' : ''}`}>
@@ -74,11 +76,11 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
                 <h3 className={`font-display text-xl font-semibold tracking-[0.04em] ${isFullyInactive ? 'text-slate-200' : 'text-ink'}`}>{product.titulo}</h3>
               </div>
               <div className={`flex flex-wrap gap-2 text-xs sm:text-sm ${isFullyInactive ? 'text-slate-400' : 'text-steel'}`}>
-                <span className={`rounded-full px-3 py-1 ${isFullyInactive ? 'border border-white/10 bg-white/[0.03]' : 'brand-chip'}`}>SKU catalogo: {product.skuBase}</span>
-                <span className={`inline-flex rounded-full border px-3 py-1 font-semibold ${statusBadge.className}`}>{statusBadge.label}</span>
+                <span className={`rounded-full px-3 py-1 ${isFullyInactive ? 'border border-white/10 bg-white/[0.03]' : 'brand-chip'}`}>{t('productRow.catalogSku', { sku: product.skuBase })}</span>
+                <span className={`inline-flex rounded-full border px-3 py-1 font-semibold ${statusBadge.className}`}>{t(statusBadge.key)}</span>
                 {(product.inactiveVariantCount ?? 0) > 0 ? (
                   <span className="inline-flex rounded-full border border-amber/35 bg-amber/10 px-3 py-1 font-semibold text-amber">
-                    {product.inactiveVariantCount} variacao(oes) inativa(s)
+                    {t('productRow.inactiveVariants', { count: product.inactiveVariantCount ?? 0 })}
                   </span>
                 ) : null}
               </div>
@@ -98,7 +100,7 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
               <svg aria-hidden="true" viewBox="0 0 24 24" className={`h-4 w-4 transition ${expanded ? 'rotate-180' : ''}`}>
                 <path d="M12 15.5l-6-6 1.4-1.4 4.6 4.6 4.6-4.6L18 9.5l-6 6z" fill="currentColor" />
               </svg>
-              <span>{expanded ? 'Recolher variacoes' : 'Ver variacoes'}</span>
+              <span>{expanded ? t('productRow.collapseVariants') : t('productRow.showVariants')}</span>
             </button>
           </div>
         </div>
@@ -116,7 +118,7 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
         skuBase={product.skuBase}
         initialImages={initialGallery}
         imageAlt={product.titulo}
-        subtitle={`${product.skuBase} | ${product.loja}`}
+        subtitle={t('productRow.previewSubtitle', { sku: product.skuBase, store: product.loja })}
         onClose={() => setPreviewOpen(false)}
       />
     </>

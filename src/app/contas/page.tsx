@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
+import { useTranslations } from '@/components/providers/LocaleProvider'
 import type { AccountDirectoryEntry, UserAccount } from '@/types/account'
 
 type FormState = {
@@ -31,6 +32,7 @@ const EMPTY_FORM: FormState = {
 }
 
 export default function ContasPage() {
+  const t = useTranslations()
   const router = useRouter()
   const [account, setAccount] = useState<UserAccount | null>(null)
   const [accounts, setAccounts] = useState<UserAccount[]>([])
@@ -188,55 +190,55 @@ export default function ContasPage() {
       <section className="panel rounded-[32px] p-5 sm:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">Gestao de contas</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.32em] text-amber">{t('accounts.label')}</p>
             <h1 className="mt-3 font-display text-2xl font-semibold text-ink sm:text-3xl lg:text-4xl">
-              Cadastro de acessos para admin e clientes
+              {t('accounts.title')}
             </h1>
             <p className="mt-3 max-w-2xl text-sm text-steel sm:text-base">
-              Admin atual: <span className="font-semibold text-ink">{account?.nome ?? 'Carregando...'}</span>
+              {t('accounts.currentAdmin', { name: account?.nome ?? '...' })}
             </p>
           </div>
           <Link
             href="/catalogo"
             className="brand-chip rounded-full px-4 py-3 text-center text-sm font-semibold text-ink transition hover:border-amber/40 hover:text-amber"
           >
-            Voltar ao catalogo
+            {t('common.backToCatalog')}
           </Link>
         </div>
       </section>
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <form onSubmit={handleSubmit} className="panel rounded-[32px] p-5 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-amber">Novo acesso</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-amber">{t('accounts.newAccess')}</p>
           {syncingDirectory ? (
             <div className="mt-4 rounded-2xl border border-amber/20 bg-amber/10 px-4 py-3 text-sm text-amber">
-              Sincronizando lojas, clientes e fornecedores a partir da base atual...
+              {t('accounts.syncingBanner')}
             </div>
           ) : null}
           {!loading && lojas.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-clay/30 bg-clay/10 px-4 py-3 text-sm text-clay">
-              Ainda nao encontramos lojas no diretorio. Verifique se a migracao rodou e se o admin tem acesso para sincronizar a base.
+              {t('accounts.emptyDirectory')}
             </div>
           ) : null}
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-steel">
-              Nome
+              {t('accounts.name')}
               <input
                 value={form.nome}
                 onChange={(event) => setForm((current) => ({ ...current, nome: event.target.value }))}
                 className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-                placeholder="Nome da conta"
+                placeholder={t('accounts.namePlaceholder')}
                 required
               />
             </label>
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-steel">
-              E-mail
+              {t('accounts.email')}
               <input
                 type="email"
                 value={form.email}
                 onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
                 className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-                placeholder="cliente@empresa.com"
+                placeholder={t('accounts.emailPlaceholder')}
                 required
               />
             </label>
@@ -244,7 +246,7 @@ export default function ContasPage() {
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-steel">
-              Perfil
+              {t('accounts.role')}
               <select
                 value={form.role}
                 onChange={(event) =>
@@ -258,13 +260,13 @@ export default function ContasPage() {
                 }
                 className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
               >
-                <option value="cliente" className="bg-slate text-ink">Cliente</option>
-                <option value="admin" className="bg-slate text-ink">Admin</option>
+                <option value="cliente" className="bg-slate text-ink">{t('accounts.roleOptions.client')}</option>
+                <option value="admin" className="bg-slate text-ink">{t('accounts.roleOptions.admin')}</option>
               </select>
             </label>
 
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-steel">
-              Loja
+              {t('accounts.store')}
               <select
                 value={form.loja}
                 onChange={(event) =>
@@ -278,7 +280,7 @@ export default function ContasPage() {
                 disabled={form.role === 'admin'}
                 className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
               >
-                <option value="" className="bg-slate text-ink">Selecione</option>
+                <option value="" className="bg-slate text-ink">{t('accounts.select')}</option>
                 {lojas.map((loja) => (
                   <option key={loja} value={loja} className="bg-slate text-ink">
                     {loja}
@@ -291,9 +293,9 @@ export default function ContasPage() {
           <div className="mt-6 rounded-3xl border border-white/10 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">Criar login no Supabase</p>
+                <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('accounts.authTitle')}</p>
                 <p className="mt-1 text-sm text-steel">
-                  Ao ativar, a conta interna e o usuario de autenticacao sao criados juntos.
+                  {t('accounts.authDescription')}
                 </p>
               </div>
               <label className="brand-chip flex items-center gap-3 rounded-full px-4 py-2 text-sm text-ink">
@@ -309,20 +311,20 @@ export default function ContasPage() {
                   }
                   className="h-4 w-4 rounded border-white/10 bg-slate text-amber focus:ring-amber"
                 />
-                <span>Autenticar e-mail agora</span>
+                <span>{t('accounts.provisionAuth')}</span>
               </label>
             </div>
 
             {form.provisionAuthUser ? (
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-steel">
-                  Senha temporaria
+                  {t('accounts.temporaryPassword')}
                   <input
                     type="password"
                     value={form.temporaryPassword}
                     onChange={(event) => setForm((current) => ({ ...current, temporaryPassword: event.target.value }))}
                     className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-                    placeholder="Minimo 6 caracteres"
+                    placeholder={t('accounts.temporaryPasswordPlaceholder')}
                   />
                 </label>
 
@@ -333,7 +335,7 @@ export default function ContasPage() {
                     onChange={(event) => setForm((current) => ({ ...current, confirmEmail: event.target.checked }))}
                     className="h-4 w-4 rounded border-white/10 bg-slate text-amber focus:ring-amber"
                   />
-                  <span>Confirmar e-mail automaticamente</span>
+                  <span>{t('accounts.confirmEmail')}</span>
                 </label>
               </div>
             ) : null}
@@ -341,7 +343,7 @@ export default function ContasPage() {
 
           {form.role === 'cliente' && form.loja === 'Presente Net' ? (
             <div className="mt-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">Fornecedores liberados</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">{t('accounts.enabledSuppliers')}</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {fornecedorOptions.map((option) => (
                   <label key={option} className="brand-chip flex items-center gap-3 rounded-2xl px-3 py-3 text-sm text-ink">
@@ -360,7 +362,7 @@ export default function ContasPage() {
 
           {form.role === 'cliente' && form.loja && form.loja !== 'Presente Net' ? (
             <div className="mt-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">Clientes vinculados</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">{t('accounts.linkedClients')}</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {clienteOptions.map((option) => (
                   <label key={option} className="brand-chip flex items-center gap-3 rounded-2xl px-3 py-3 text-sm text-ink">
@@ -393,14 +395,14 @@ export default function ContasPage() {
               disabled={saving || loading}
               className="rounded-full bg-cobalt px-5 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#418dff] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? 'Salvando...' : 'Criar conta'}
+              {saving ? t('accounts.saving') : t('accounts.createAccount')}
             </button>
             <button
               type="button"
               onClick={() => setForm(EMPTY_FORM)}
               className="brand-chip rounded-full px-5 py-3 text-sm font-semibold text-ink"
             >
-              Limpar
+              {t('common.clear')}
             </button>
             <button
               type="button"
@@ -408,15 +410,15 @@ export default function ContasPage() {
               disabled={syncingDirectory}
               className="brand-chip rounded-full px-5 py-3 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {syncingDirectory ? 'Sincronizando...' : 'Sincronizar base'}
+              {syncingDirectory ? t('accounts.syncing') : t('accounts.syncingBase')}
             </button>
           </div>
         </form>
 
         <section className="panel rounded-[32px] p-5 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-amber">Contas cadastradas</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-amber">{t('accounts.registeredAccounts')}</p>
           {loading ? (
-            <div className="mt-6 text-sm text-steel">Carregando lista de contas...</div>
+            <div className="mt-6 text-sm text-steel">{t('accounts.loadingList')}</div>
           ) : (
             <div className="mt-6 grid gap-3">
               {accounts.map((item) => (
@@ -428,22 +430,22 @@ export default function ContasPage() {
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs">
                       <span className="rounded-full bg-cobalt/20 px-3 py-1 text-amber">{item.role}</span>
-                      <span className="rounded-full bg-white/5 px-3 py-1 text-ink">{item.ativo ? 'ativo' : 'inativo'}</span>
+                      <span className="rounded-full bg-white/5 px-3 py-1 text-ink">{item.ativo ? t('accounts.statusActive') : t('accounts.statusInactive')}</span>
                     </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
                     {item.role === 'admin' ? (
-                      <span className="rounded-full bg-white/5 px-3 py-1 text-ink">Acesso total</span>
+                      <span className="rounded-full bg-white/5 px-3 py-1 text-ink">{t('accounts.totalAccess')}</span>
                     ) : item.access.scopeType === 'fornecedor_prefix' ? (
                       item.access.fornecedorPrefixes.map((prefix) => (
                         <span key={prefix} className="rounded-full bg-white/5 px-3 py-1 text-ink">
-                          Fornecedor {prefix}
+                          {t('accounts.supplierTag', { prefix })}
                         </span>
                       ))
                     ) : (
                       item.access.clienteCods.map((clienteCod) => (
                         <span key={clienteCod} className="rounded-full bg-white/5 px-3 py-1 text-ink">
-                          Cliente {clienteCod}
+                          {t('accounts.clientTag', { code: clienteCod })}
                         </span>
                       ))
                     )}
@@ -456,7 +458,7 @@ export default function ContasPage() {
       </section>
       <LoadingOverlay
         open={loading || saving || syncingDirectory}
-        label={saving ? 'Salvando conta...' : syncingDirectory ? 'Sincronizando diretorio...' : 'Carregando dados...'}
+        label={saving ? t('accounts.savingData') : syncingDirectory ? t('accounts.syncingDirectory') : t('accounts.loadingData')}
       />
     </main>
   )
