@@ -1,4 +1,4 @@
-export type ProductRequestVariationType = 'cores' | 'estampas'
+export type ProductRequestVariationType = 'cores' | 'estampas' | 'variados'
 
 export type ProductRequestSizeMeasureEntry = {
   size: string

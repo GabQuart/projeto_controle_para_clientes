@@ -40,6 +40,22 @@ function createInitialStampFields() {
   return ['']
 }
 
+function getVariationSectionMeta(variationType: ProductRequestVariationType) {
+  if (variationType === 'variados') {
+    return {
+      title: 'Liste os variados',
+      description: 'Adicione aqui as versoes diferentes do produto. Exemplo: Casinha de bonecas.',
+      placeholder: 'Ex.: Casinha de bonecas',
+    }
+  }
+
+  return {
+    title: 'Liste as estampas',
+    description: 'Informe cada estampa em uma linha curta. Ex.: Floral / Azul.',
+    placeholder: 'Ex.: Floral / Azul',
+  }
+}
+
 function ensureTrailingEmptyField(values: string[]) {
   const nextValues = [...values]
 
@@ -172,6 +188,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
   }, [variationType])
 
   const filledStampFields = useMemo(() => uniqueTrimmed(stampFields), [stampFields])
+  const variationSectionMeta = useMemo(() => getVariationSectionMeta(variationType), [variationType])
   const orderedSelectedSizes = useMemo(() => {
     const orderedCodes = options.sizeGroups.flatMap((group) => group.items.map((item) => item.code))
     return orderedCodes.filter((code) => selectedSizes.includes(code))
@@ -517,7 +534,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <div className="rounded-3xl border border-cobalt/25 bg-cobalt/10 p-3 sm:p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">Tipo de variacao</p>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setVariationType('cores')}
@@ -539,6 +556,17 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                 }`}
               >
                 Estampas
+              </button>
+              <button
+                type="button"
+                onClick={() => setVariationType('variados')}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  variationType === 'variados'
+                    ? 'border border-amber/50 bg-amber/15 text-amber shadow-[0_0_20px_rgba(255,196,69,0.12)]'
+                    : 'brand-chip text-ink'
+                }`}
+              >
+                Variados
               </button>
               </div>
             </div>
@@ -565,7 +593,8 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
               </div>
             ) : (
               <div className="rounded-3xl border border-white/10 bg-night/30 p-3 sm:p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-steel">Liste as estampas</p>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-steel">{variationSectionMeta.title}</p>
+                <p className="mb-3 text-sm text-steel">{variationSectionMeta.description}</p>
                 <div className="grid gap-3">
                   {stampFields.map((value, index) => (
                     <input
@@ -573,7 +602,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
                       value={value}
                       onChange={(event) => handleStampChange(index, event.target.value)}
                       className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-                      placeholder="Ex.: Floral / Azul"
+                      placeholder={variationSectionMeta.placeholder}
                     />
                   ))}
                 </div>

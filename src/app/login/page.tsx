@@ -127,7 +127,7 @@ export default function LoginPage() {
 
         <div className="brand-wordmark-frame brand-glow mt-8 overflow-hidden rounded-[28px] p-3">
           <Image
-            src="/branding/m3rcadeo-wordmark.png"
+            src="/branding/m3rcadeo-login-wordmark.png"
             alt="Logo M3rcadeo"
             width={1152}
             height={768}

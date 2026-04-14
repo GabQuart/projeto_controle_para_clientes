@@ -286,7 +286,15 @@ function validateVariationValues(values: string[], type: ProductRequestVariation
   const cleanedValues = unique(values)
 
   if (cleanedValues.length === 0) {
-    throw new Error(type === 'cores' ? 'Selecione ao menos uma cor.' : 'Informe ao menos uma variacao de estampa.')
+    if (type === 'cores') {
+      throw new Error('Selecione ao menos uma cor.')
+    }
+
+    if (type === 'variados') {
+      throw new Error('Informe ao menos uma variacao em Variados.')
+    }
+
+    throw new Error('Informe ao menos uma variacao de estampa.')
   }
 
   return cleanedValues
@@ -461,7 +469,12 @@ function buildProductRequestDetail(row: ProductRequestSheetRow) {
   }
 
   if (variationType && variations.length > 0) {
-    const variationLabel = variationType === 'cores' ? 'Cores' : 'Estampas'
+    const variationLabel =
+      variationType === 'cores'
+        ? 'Cores'
+        : variationType === 'variados'
+          ? 'Variados'
+          : 'Estampas'
     parts.push(`${variationLabel}: ${variations.join(', ')}`)
   }
 
