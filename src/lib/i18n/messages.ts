@@ -1106,8 +1106,8 @@ export const messages = {
       "inactiveVariants": "{count} 个变体已停用",
       "expandImage": "放大 {title} 的图片",
       "zoom": "放大",
-      "collapseVariants": "????",
-      "showVariants": "????",
+      "collapseVariants": "收起款式",
+      "showVariants": "查看款式",
       "previewSubtitle": "{sku} | {store}"
     },
     "variants": {
