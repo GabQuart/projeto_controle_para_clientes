@@ -5,6 +5,13 @@ import {
   uploadFilesToDriveRequestFolder,
 } from '@/lib/google/drive'
 import { listAccountDirectory } from '@/lib/services/account.service'
+import {
+  isTrelloConfigured,
+  createTrelloCard,
+  buildProductRequestCardName,
+  buildProductRequestCardDesc,
+} from '@/lib/services/trello.service'
+import { getOptionalEnv } from '@/lib/env'
 import { compactText, normalizeText } from '@/lib/utils/format'
 import { createSimpleId } from '@/lib/utils/id'
 import type { UserAccount } from '@/types/account'
@@ -508,7 +515,7 @@ async function mapProductRequestRowToHistory(row: ProductRequestSheetRow): Promi
     return null
   }
 
-  const requester = parseRequesterInfo(row.solicitante ?? row['Coluna 6'])
+  const requester = parseRequesterInfo(row.solicitante ?? (row as Record<string, string | undefined>)['Coluna 6'])
   const image = await resolveProductRequestImage(row)
   const imageCount = Number(row.qtd_imagens ?? 0)
 
@@ -611,6 +618,7 @@ export async function createProductRequest(input: CreateProductRequestInput) {
     notes,
   }
 
+  // ── 1. Salva no Supabase ──────────────────────────────────────────────────
   const supabase = createAdminClient()
   const { error: dbError } = await supabase.from('solicitacoes_produto').insert({
     id_solicitacao: record.id,
@@ -638,6 +646,40 @@ export async function createProductRequest(input: CreateProductRequestInput) {
 
   if (dbError) {
     throw new Error(`Falha ao registrar solicitacao: ${dbError.message}`)
+  }
+
+  // ── 2. Cria card no Trello (se configurado) ───────────────────────────────
+  const trelloListId = getOptionalEnv('TRELLO_LIST_NOVOS_PRODUTOS_ENTRADA_ID')
+
+  if (isTrelloConfigured() && trelloListId) {
+    try {
+      const cardName = buildProductRequestCardName(record.cliente, record.productName)
+      const cardDesc = buildProductRequestCardDesc({
+        solicitante: record.requesterName,
+        tamanhos: record.sizes,
+        variationType: record.variationType,
+        variacoes: record.variations,
+        custo: record.productCost,
+        observacoes: record.notes,
+      })
+
+      const cardId = await createTrelloCard({
+        listId: trelloListId,
+        name: cardName,
+        desc: cardDesc,
+        urlSource: record.folderUrl || undefined,
+      })
+
+      if (cardId) {
+        await supabase
+          .from('solicitacoes_produto')
+          .update({ enviado_trello: true, trello_card_id: cardId, trello_enviado_em: new Date().toISOString() })
+          .eq('id_solicitacao', record.id)
+      }
+    } catch (trelloError) {
+      // Não bloqueia a solicitação se o Trello falhar
+      console.warn('[product-request] Falha ao criar card no Trello:', trelloError instanceof Error ? trelloError.message : trelloError)
+    }
   }
 
   return record

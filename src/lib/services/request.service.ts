@@ -1,5 +1,11 @@
-import { appendSheetRow, getSpreadsheetSheetTitles, readSheetTab, updateSheetRow } from '@/lib/google/sheets'
+import { appendSheetRow, getSpreadsheetSheetTitles, readSheetTab, updateSheetRow, updateRowsByLookup } from '@/lib/google/sheets'
 import { validateActiveAccount } from '@/lib/services/account.service'
+import {
+  isTrelloConfigured,
+  createTrelloCard,
+  buildOperationalCardName,
+  buildOperationalCardDesc,
+} from '@/lib/services/trello.service'
 import { getCatalogSnapshotItem, updateCatalogVariantStatuses } from '@/lib/services/catalog.service'
 import { listProductRequestHistory } from '@/lib/services/product-request.service'
 import { compactText, normalizeText, toBooleanFlag } from '@/lib/utils/format'
@@ -426,6 +432,36 @@ async function createRequestInternal(
 
   const sheetName = await ensureRequestSheetHeaders()
   await appendSheetRow(OUTPUT_SHEET_ID, sheetName, buildRequestRow(request))
+
+  // ── Cria card no Trello (se configurado) ──────────────────────────────────
+  const trelloListId = process.env.TRELLO_LIST_ATIVACAO_ENTRADA_ID ?? ''
+
+  if (isTrelloConfigured() && trelloListId) {
+    try {
+      const cardName = buildOperationalCardName(request.tipoAlteracao, request.titulo, request.skuBase)
+      const cardDesc = buildOperationalCardDesc({
+        loja: request.loja,
+        operadorNome: request.operadorNome,
+        variacoes: request.variacoesSelecionadas ?? [],
+        estoqueGeral: request.estoqueGeral,
+        detalhe: request.detalhe,
+      })
+
+      const cardId = await createTrelloCard({ listId: trelloListId, name: cardName, desc: cardDesc })
+
+      if (cardId) {
+        await updateRowsByLookup(OUTPUT_SHEET_ID, sheetName, 'id', [
+          {
+            key: request.id,
+            values: { trelloCardId: cardId, enviadoTrello: 'SIM' },
+          },
+        ])
+      }
+    } catch (trelloError) {
+      // Não bloqueia a solicitação se o Trello falhar
+      console.warn('[request] Falha ao criar card no Trello:', trelloError instanceof Error ? trelloError.message : trelloError)
+    }
+  }
 
   return request
 }
