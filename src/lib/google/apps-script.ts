@@ -1,4 +1,4 @@
-﻿import { getOptionalEnv, getRequiredEnv } from '@/lib/env'
+﻿import { getOptionalEnv } from '@/lib/env'
 
 type AppsScriptRequestOptions = {
   method?: 'GET' | 'POST'
@@ -13,7 +13,13 @@ type AppsScriptEnvelope<T> = {
 }
 
 function buildAppsScriptUrl(action: string, query?: Record<string, string | undefined>) {
-  const url = new URL(getRequiredEnv('APPS_SCRIPT_WEB_APP_URL'))
+  const webAppUrl = getOptionalEnv('APPS_SCRIPT_WEB_APP_URL')
+
+  if (!webAppUrl) {
+    throw new Error('APPS_SCRIPT_WEB_APP_URL nao configurada.')
+  }
+
+  const url = new URL(webAppUrl)
   url.searchParams.set('action', action)
 
   const token = getOptionalEnv('APPS_SCRIPT_TOKEN')

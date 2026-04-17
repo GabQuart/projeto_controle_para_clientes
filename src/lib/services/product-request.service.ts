@@ -4,7 +4,6 @@ import {
   resolveDriveRequestFolderImage,
   uploadFilesToDriveRequestFolder,
 } from '@/lib/google/drive'
-import { appendSheetRow, getSpreadsheetSheetTitles, readMultipleSheetTabs, readSheetTab } from '@/lib/google/sheets'
 import { listAccountDirectory } from '@/lib/services/account.service'
 import { compactText, normalizeText } from '@/lib/utils/format'
 import { createSimpleId } from '@/lib/utils/id'
@@ -18,19 +17,13 @@ import type {
   ProductRequestVariationType,
 } from '@/types/product-request'
 import type { ChangeRequestFilters, RequestHistoryEntry, RequestHistoryStatus } from '@/types/request'
+import { createAdminClient } from '@/utils/supabase/admin'
 
-const SOURCE_SHEET_ID = process.env.GOOGLE_SOURCE_SHEET_ID ?? ''
-const DEFAULT_PRODUCT_REQUESTS_SHEET_ID = '1bbqfh0ED6sia-PPXO7wv-W2rbg3FK8IhPZ-cXkpglOI'
-const PRODUCT_REQUESTS_SHEET_ID = process.env.GOOGLE_PRODUCT_REQUESTS_SHEET_ID ?? DEFAULT_PRODUCT_REQUESTS_SHEET_ID
-const PRODUCT_REQUESTS_SHEET_NAME = process.env.GOOGLE_PRODUCT_REQUESTS_SHEET_NAME ?? ''
 const PRODUCT_REQUESTS_UPLOAD_FOLDER_ID =
   process.env.GOOGLE_PRODUCT_REQUESTS_UPLOAD_FOLDER_ID ?? process.env.GOOGLE_DRIVE_FOLDER_ID ?? ''
 const PRODUCT_REQUESTS_DRIVE_ROOT = process.env.GOOGLE_PRODUCT_REQUESTS_DRIVE_ROOT_NAME ?? 'solicitacoes_produto'
 const PRODUCT_REQUEST_STATUS: RequestHistoryStatus = 'pendente'
 const PRODUCT_REQUEST_TYPE = 'novo_produto'
-const PRODUCT_REQUEST_STATUS_SHEET_VALUE = 'PENDENTE'
-const PRODUCT_REQUEST_SHEET_TYPE_VALUE = 'novo_produto'
-const OPTION_TABS = ['DIC_CORES', 'DIC_TAMANHOS'] as const
 
 type DictionaryColorRow = {
   cor_nome?: string
@@ -60,7 +53,6 @@ type ProductRequestSheetRow = {
   origem?: string
   observacoes?: string
   tipo_solicitacao?: string
-  [key: string]: string | undefined
 }
 
 type ProductRequestImageUpload = {
@@ -82,7 +74,6 @@ type CreateProductRequestInput = {
   images: ProductRequestImageUpload[]
 }
 
-let cachedProductRequestSheetName = ''
 let cachedRequestOptions: Pick<ProductRequestOptions, 'colors' | 'sizeGroups'> | null = null
 const requestImageCache = new Map<string, string>()
 
@@ -207,21 +198,23 @@ async function readDictionaryOptions() {
     return cachedRequestOptions
   }
 
-  if (!SOURCE_SHEET_ID) {
-    throw new Error('GOOGLE_SOURCE_SHEET_ID nao configurado para ler cores e tamanhos.')
-  }
+  const supabase = createAdminClient()
 
-  const tabs = await readMultipleSheetTabs(SOURCE_SHEET_ID, [...OPTION_TABS])
-  const colorRows = (tabs.DIC_CORES ?? []) as DictionaryColorRow[]
-  const sizeRows = (tabs.DIC_TAMANHOS ?? []) as DictionarySizeRow[]
+  const [{ data: colorRows }, { data: sizeRows }] = await Promise.all([
+    supabase.from('dic_cores').select('cor_nome').order('cor_nome'),
+    supabase.from('dic_tamanhos').select('tamanho_cod, tamanho_nome, categoria'),
+  ])
 
-  const colors = unique(colorRows.map((row) => row.cor_nome ?? '')).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const colors = unique((colorRows ?? []).map((row) => (row as { cor_nome: string }).cor_nome ?? '')).sort((a, b) =>
+    a.localeCompare(b, 'pt-BR'),
+  )
 
-  const sizeOptions = sizeRows
+  const sizeOptions = (sizeRows ?? [])
     .map<ProductRequestSizeOption | null>((row) => {
-      const code = compactText(row.tamanho_cod ?? '')
-      const label = compactText(row.tamanho_nome ?? '') || code
-      const category = compactText(row.categoria ?? '')
+      const r = row as DictionarySizeRow
+      const code = compactText(r.tamanho_cod ?? '')
+      const label = compactText(r.tamanho_nome ?? '') || code
+      const category = compactText(r.categoria ?? '')
 
       if (!code || !label) {
         return null
@@ -258,20 +251,6 @@ async function readDictionaryOptions() {
   }
 
   return cachedRequestOptions
-}
-
-async function getProductRequestsSheetName() {
-  if (PRODUCT_REQUESTS_SHEET_NAME) {
-    return PRODUCT_REQUESTS_SHEET_NAME
-  }
-
-  if (cachedProductRequestSheetName) {
-    return cachedProductRequestSheetName
-  }
-
-  const titles = await getSpreadsheetSheetTitles(PRODUCT_REQUESTS_SHEET_ID)
-  cachedProductRequestSheetName = titles[0] ?? 'solicitacoes_produto'
-  return cachedProductRequestSheetName
 }
 
 function ensurePositiveNumber(value: number) {
@@ -369,28 +348,6 @@ function serializeSizeChart(entries: ProductRequestSizeMeasureEntry[]) {
   return Array.from(groupedEntries.entries())
     .map(([size, measurements]) => `${size}: ${measurements.join(' | ')}`)
     .join('\n')
-}
-
-function buildSheetRow(record: ProductRequestRecord) {
-  return [
-    record.id,
-    record.createdAt,
-    record.cliente,
-    record.productName,
-    record.productCost.toFixed(2),
-    `${record.requesterName} | ${record.requesterEmail}`,
-    record.sizes.join(' | '),
-    record.sizeChart,
-    record.variationType,
-    record.variations.join(' | '),
-    String(record.imageCount),
-    record.folderUrl,
-    record.imageLinks.map((image) => image.originalUrl).join('\n'),
-    PRODUCT_REQUEST_STATUS_SHEET_VALUE,
-    record.origin,
-    record.notes ?? '',
-    PRODUCT_REQUEST_SHEET_TYPE_VALUE,
-  ]
 }
 
 function splitPipeList(value?: string) {
@@ -654,25 +611,91 @@ export async function createProductRequest(input: CreateProductRequestInput) {
     notes,
   }
 
-  const sheetName = await getProductRequestsSheetName()
-  try {
-    await appendSheetRow(PRODUCT_REQUESTS_SHEET_ID, sheetName, buildSheetRow(record))
-  } catch (error) {
-    throw new Error(mapProductRequestInfrastructureError(error))
+  const supabase = createAdminClient()
+  const { error: dbError } = await supabase.from('solicitacoes_produto').insert({
+    id_solicitacao: record.id,
+    data_criacao: record.createdAt,
+    loja: record.cliente,
+    cliente_cod: record.cliente,
+    nome_produto: record.productName,
+    custo_produto: record.productCost,
+    solicitante: `${record.requesterName} | ${record.requesterEmail}`,
+    tamanhos_raw: record.sizes.join(' | '),
+    tamanhos: record.sizes,
+    tabela_medidas: record.sizeChart,
+    tipo_variacao: record.variationType,
+    variacoes_raw: record.variations.join(' | '),
+    variacoes: record.variations,
+    qtd_imagens: record.imageCount,
+    link_pasta_drive: record.folderUrl,
+    links_imagens: folderPayload.files.map((f) => f.originalUrl),
+    status: 'pendente',
+    origem: 'sistema_web',
+    observacoes: record.notes ?? '',
+    tipo_solicitacao: PRODUCT_REQUEST_TYPE,
+    enviado_trello: false,
+  })
+
+  if (dbError) {
+    throw new Error(`Falha ao registrar solicitacao: ${dbError.message}`)
   }
 
   return record
 }
 
 export async function listProductRequestHistory(filters: ChangeRequestFilters = {}) {
-  if (!PRODUCT_REQUESTS_SHEET_ID) {
+  const supabase = createAdminClient()
+
+  let query = supabase
+    .from('solicitacoes_produto')
+    .select('*')
+    .order('criado_em', { ascending: false })
+
+  if (filters.tipoSolicitacao && filters.tipoSolicitacao !== PRODUCT_REQUEST_TYPE) {
     return [] as RequestHistoryEntry[]
   }
 
-  const sheetName = await getProductRequestsSheetName()
-  const rows = (await readSheetTab(PRODUCT_REQUESTS_SHEET_ID, sheetName)) as ProductRequestSheetRow[]
-  const filteredRows = rows.filter((row) => matchesProductRequestSheetFilters(row, filters))
-  const mappedRows = await Promise.all(filteredRows.map((row) => mapProductRequestRowToHistory(row)))
+  if (filters.status) {
+    query = query.eq('status', filters.status)
+  }
+
+  if (filters.loja) {
+    query = query.eq('loja', filters.loja)
+  }
+
+  if (filters.nome) {
+    query = query.ilike('nome_produto', `%${filters.nome}%`)
+  }
+
+  if (filters.sku) {
+    query = query.ilike('id_solicitacao', `%${filters.sku}%`)
+  }
+
+  const { data: rows } = await query
+
+  const mappedRows = await Promise.all(
+    (rows ?? []).map((row) =>
+      mapProductRequestRowToHistory({
+        id_solicitacao: row.id_solicitacao,
+        data_criacao: row.data_criacao,
+        cliente: row.loja,
+        nome_produto: row.nome_produto,
+        custo_produto: String(row.custo_produto ?? ''),
+        solicitante: row.solicitante,
+        tamanhos: row.tamanhos_raw,
+        tabela_medidas: row.tabela_medidas,
+        tipo_variacao: row.tipo_variacao,
+        variacoes: row.variacoes_raw,
+        qtd_imagens: String(row.qtd_imagens ?? ''),
+        link_pasta_drive: row.link_pasta_drive,
+        links_imagens: (row.links_imagens ?? []).join('\n'),
+        status: row.status,
+        origem: row.origem,
+        observacoes: row.observacoes,
+        tipo_solicitacao: row.tipo_solicitacao,
+      }),
+    ),
+  )
 
   return mappedRows.filter((row): row is RequestHistoryEntry => Boolean(row?.id))
 }
