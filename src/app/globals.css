@@ -2,21 +2,123 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+/* ═══════════════════════════════════════════════════════════
+   TEMA ESCURO (padrão)  —  identidade atual azul escuro
+   ═══════════════════════════════════════════════════════════ */
+:root,
+[data-theme='dark'] {
   color-scheme: dark;
-  --background: #050c15;
+
+  /* Triplas RGB para suporte a modificadores de opacidade Tailwind */
+  --color-ink:    238 248 255;   /* #eef8ff — texto principal      */
+  --color-mist:    14  34  57;   /* #0e2239 — bg secundário        */
+  --color-accent:  53 149 193;   /* #3595c1 — Mercadeo azul        */
+  --color-pine:    75 224 204;   /* #4be0cc — sucesso              */
+  --color-clay:   255 107 135;   /* #ff6b87 — perigo               */
+  --color-steel:  136 164 197;   /* #88a4c5 — muted                */
+  --color-night:    5  12  21;   /* #050c15 — fundo principal      */
+  --color-slate:   10  21  36;   /* #0a1524 — fundo elevado        */
+  --color-cobalt:  45 124 255;   /* #2d7cff — ação / link          */
+
+  /* Semânticos */
+  --background:          #050c15;
   --background-elevated: #0d1a2b;
-  --foreground: #eef8ff;
-  --muted: #88a4c5;
-  --card: linear-gradient(180deg, rgba(10, 24, 43, 0.88) 0%, rgba(7, 16, 30, 0.92) 100%);
-  --border: rgba(95, 173, 255, 0.18);
-  --accent: #58c8ff;
-  --accent-strong: #2d7cff;
-  --success: #4be0cc;
-  --danger: #ff6b87;
-  --shadow-glow: 0 18px 60px rgba(1, 121, 255, 0.16);
+  --foreground:          #eef8ff;
+  --card:                linear-gradient(180deg, rgba(10,24,43,0.88) 0%, rgba(7,16,30,0.92) 100%);
+  --border:              rgba(53, 149, 193, 0.22);
+  --border-subtle:       rgba(255, 255, 255, 0.05);
+  --shadow-glow:         0 18px 60px rgba(1, 121, 255, 0.16);
+  --logo-shadow:         0 0 28px rgba(72, 146, 255, 0.32);
+  --logo-border:         rgba(45, 124, 255, 0.30);
+  --logo-bg:             rgba(5, 12, 21, 0.70);
+
+  --body-bg:
+    radial-gradient(circle at 20%   0%, rgba(88,200,255,0.20), transparent 28%),
+    radial-gradient(circle at 80%  12%, rgba(45,124,255,0.24), transparent 25%),
+    radial-gradient(circle at 50% 100%, rgba(30, 71,138,0.18), transparent 38%),
+    linear-gradient(180deg, #050c15 0%, #09111c 44%, #040913 100%);
+
+  --grid-overlay:
+    linear-gradient(90deg,  rgba(255,255,255,0.018) 0, rgba(255,255,255,0.018) 1px, transparent 1px, transparent 72px),
+    linear-gradient(180deg, rgba(83,124,171,0.07), transparent 45%);
+  --grid-overlay-blend:   screen;
+  --grid-overlay-opacity: 0.55;
+
+  --chip-bg:     rgba(11, 28, 49, 0.66);
+  --chip-border: rgba(53, 149, 193, 0.22);
+  --chip-inset:  rgba(255, 255, 255, 0.03);
+
+  --glow-ring1:  rgba(88, 200, 255, 0.12);
+  --glow-ring2:  rgba(88, 200, 255, 0.14);
+  --glow-inset:  rgba(45, 124, 255, 0.09);
+
+  --wordmark-bg:
+    radial-gradient(circle at center, rgba(88,200,255,0.18), transparent 55%),
+    linear-gradient(180deg, rgba(8,18,31,0.92), rgba(5,11,20,0.98));
+  --wordmark-border: rgba(88, 200, 255, 0.18);
+  --scrollbar-thumb: rgba(88, 200, 255, 0.35);
+  --brand-line:  linear-gradient(90deg, transparent, rgba(88,200,255,0.50), transparent);
+  --ring-border: rgba(88, 200, 255, 0.18);
+  --ring-color:  #58c8ff;
+  --ring-color2: #2d7cff;
+  --ring-glow:   rgba(88, 200, 255, 0.20);
 }
 
+/* ═══════════════════════════════════════════════════════════
+   TEMA CLARO  —  identidade Mercadeo branca
+   ═══════════════════════════════════════════════════════════ */
+[data-theme='light'] {
+  color-scheme: light;
+
+  --color-ink:     29  36  55;   /* #1d2437 — Mercadeo navy        */
+  --color-mist:   195 222 225;   /* #c3dee1 — Mercadeo teal claro  */
+  --color-accent:  53 149 193;   /* #3595c1 — Mercadeo azul        */
+  --color-pine:    42 157 143;   /* #2a9d8f — sucesso              */
+  --color-clay:   224  92 122;   /* #e05c7a — perigo               */
+  --color-steel:  120 137 162;   /* muted mais visível no claro    */
+  --color-night:  255 255 255;   /* #ffffff — fundo principal      */
+  --color-slate:  240 246 248;   /* #f0f6f8 — fundo elevado        */
+  --color-cobalt:  53 149 193;   /* #3595c1 — Mercadeo azul        */
+
+  --background:          #ffffff;
+  --background-elevated: #f0f6f8;
+  --foreground:          #1d2437;
+  --card:                linear-gradient(180deg, rgba(240,246,248,0.90) 0%, rgba(255,255,255,0.98) 100%);
+  --border:              rgba(53, 149, 193, 0.28);
+  --border-subtle:       rgba(29, 36, 55, 0.08);
+  --shadow-glow:         0 12px 40px rgba(53, 149, 193, 0.10);
+  --logo-shadow:         0 0 24px rgba(53, 149, 193, 0.25);
+  --logo-border:         rgba(53, 149, 193, 0.40);
+  --logo-bg:             rgba(240, 246, 248, 0.90);
+
+  --body-bg:             linear-gradient(180deg, #f0f6f8 0%, #ffffff 35%);
+  --grid-overlay:        none;
+  --grid-overlay-blend:  normal;
+  --grid-overlay-opacity: 0;
+
+  --chip-bg:     rgba(240, 246, 248, 0.95);
+  --chip-border: rgba(53, 149, 193, 0.30);
+  --chip-inset:  rgba(29, 36, 55, 0.04);
+
+  --glow-ring1:  rgba(53, 149, 193, 0.15);
+  --glow-ring2:  rgba(53, 149, 193, 0.10);
+  --glow-inset:  rgba(53, 149, 193, 0.06);
+
+  --wordmark-bg:
+    radial-gradient(circle at center, rgba(53,149,193,0.10), transparent 55%),
+    linear-gradient(180deg, rgba(240,246,248,0.95), rgba(255,255,255,0.98));
+  --wordmark-border: rgba(53, 149, 193, 0.25);
+  --scrollbar-thumb: rgba(53, 149, 193, 0.40);
+  --brand-line:  linear-gradient(90deg, transparent, rgba(53,149,193,0.40), transparent);
+  --ring-border: rgba(53, 149, 193, 0.25);
+  --ring-color:  #3595c1;
+  --ring-color2: #1d2437;
+  --ring-glow:   rgba(53, 149, 193, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BASE
+   ═══════════════════════════════════════════════════════════ */
 * {
   box-sizing: border-box;
 }
@@ -28,31 +130,8 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 20% 0%, rgba(88, 200, 255, 0.2), transparent 28%),
-    radial-gradient(circle at 80% 12%, rgba(45, 124, 255, 0.24), transparent 25%),
-    radial-gradient(circle at 50% 100%, rgba(30, 71, 138, 0.18), transparent 38%),
-    linear-gradient(180deg, #050c15 0%, #09111c 44%, #040913 100%);
+  background: var(--body-bg);
   color: var(--foreground);
-}
-
-html[lang='zh-CN'] body {
-  font-family:
-    var(--font-sora),
-    'Microsoft YaHei',
-    'PingFang SC',
-    'Hiragino Sans GB',
-    'Noto Sans SC',
-    sans-serif;
-}
-
-html[lang='ar'] body {
-  font-family:
-    var(--font-sora),
-    Tahoma,
-    'Segoe UI',
-    Arial,
-    sans-serif;
 }
 
 body::before {
@@ -60,11 +139,17 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0, rgba(255, 255, 255, 0.018) 1px, transparent 1px, transparent 72px),
-    linear-gradient(180deg, rgba(83, 124, 171, 0.07), transparent 45%);
-  mix-blend-mode: screen;
-  opacity: 0.55;
+  background: var(--grid-overlay);
+  mix-blend-mode: var(--grid-overlay-blend, normal);
+  opacity: var(--grid-overlay-opacity, 0);
+}
+
+html[lang='zh-CN'] body {
+  font-family: var(--font-sora), 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', sans-serif;
+}
+
+html[lang='ar'] body {
+  font-family: var(--font-sora), Tahoma, 'Segoe UI', Arial, sans-serif;
 }
 
 a {
@@ -83,6 +168,9 @@ main {
   min-height: 100vh;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   COMPONENTES DE MARCA
+   ═══════════════════════════════════════════════════════════ */
 .panel {
   background: var(--card);
   backdrop-filter: blur(18px);
@@ -93,33 +181,37 @@ main {
 .grid-shell {
   position: relative;
   background:
-    radial-gradient(circle at 50% 8%, rgba(88, 200, 255, 0.16), transparent 18%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 20%);
+    radial-gradient(circle at 50% 8%, rgba(88,200,255,0.06), transparent 18%),
+    linear-gradient(180deg, rgba(255,255,255,0.01), transparent 20%);
+}
+
+[data-theme='light'] .grid-shell {
+  background:
+    radial-gradient(circle at 50% 8%, rgba(53,149,193,0.04), transparent 18%),
+    transparent;
 }
 
 .brand-line {
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(88, 200, 255, 0.5), transparent);
+  background: var(--brand-line);
 }
 
 .brand-chip {
-  border: 1px solid rgba(88, 200, 255, 0.22);
-  background: rgba(11, 28, 49, 0.66);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--chip-border);
+  background: var(--chip-bg);
+  box-shadow: inset 0 0 0 1px var(--chip-inset);
 }
 
 .brand-glow {
   box-shadow:
-    0 0 0 1px rgba(88, 200, 255, 0.12),
-    0 0 40px rgba(88, 200, 255, 0.14),
-    inset 0 0 35px rgba(45, 124, 255, 0.09);
+    0 0 0 1px var(--glow-ring1),
+    0 0 40px var(--glow-ring2),
+    inset 0 0 35px var(--glow-inset);
 }
 
 .brand-wordmark-frame {
-  border: 1px solid rgba(88, 200, 255, 0.18);
-  background:
-    radial-gradient(circle at center, rgba(88, 200, 255, 0.18), transparent 55%),
-    linear-gradient(180deg, rgba(8, 18, 31, 0.92), rgba(5, 11, 20, 0.98));
+  border: 1px solid var(--wordmark-border);
+  background: var(--wordmark-bg);
 }
 
 .brand-scrollbar::-webkit-scrollbar {
@@ -128,7 +220,7 @@ main {
 }
 
 .brand-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(88, 200, 255, 0.35);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
 
@@ -136,15 +228,26 @@ main {
   height: 48px;
   width: 48px;
   border-radius: 999px;
-  border: 3px solid rgba(88, 200, 255, 0.18);
-  border-top-color: #58c8ff;
-  border-right-color: #2d7cff;
+  border: 3px solid var(--ring-border);
+  border-top-color: var(--ring-color);
+  border-right-color: var(--ring-color2);
   animation: brand-spin 0.8s linear infinite;
-  box-shadow: 0 0 28px rgba(88, 200, 255, 0.2);
+  box-shadow: 0 0 28px var(--ring-glow);
 }
 
 @keyframes brand-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TRANSIÇÕES AO TROCAR TEMA
+   ═══════════════════════════════════════════════════════════ */
+body,
+.panel,
+.brand-chip,
+.brand-glow,
+header,
+nav {
+  transition: background 0.25s ease, background-color 0.25s ease,
+              border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease;
 }

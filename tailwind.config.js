@@ -7,27 +7,24 @@ module.exports = {
   ],
   theme: {
     extend: {
+      // Cores mapeadas para CSS variables — suportam modificadores de opacidade (ex: text-ink/50)
       colors: {
-        ink: '#eef8ff',
-        mist: '#0e2239',
-        amber: '#58c8ff',
-        pine: '#4be0cc',
-        clay: '#ff6b87',
-        steel: '#88a4c5',
-        night: '#050c15',
-        slate: '#0a1524',
-        cobalt: '#2d7cff',
+        ink:    'rgb(var(--color-ink)    / <alpha-value>)',
+        mist:   'rgb(var(--color-mist)   / <alpha-value>)',
+        amber:  'rgb(var(--color-accent) / <alpha-value>)',
+        pine:   'rgb(var(--color-pine)   / <alpha-value>)',
+        clay:   'rgb(var(--color-clay)   / <alpha-value>)',
+        steel:  'rgb(var(--color-steel)  / <alpha-value>)',
+        night:  'rgb(var(--color-night)  / <alpha-value>)',
+        slate:  'rgb(var(--color-slate)  / <alpha-value>)',
+        cobalt: 'rgb(var(--color-cobalt) / <alpha-value>)',
       },
       boxShadow: {
-        panel: '0 18px 60px rgba(1, 121, 255, 0.16)',
-        soft: '0 12px 32px rgba(1, 121, 255, 0.12)',
-      },
-      backgroundImage: {
-        'catalog-grid':
-          'radial-gradient(circle at 20% 0%, rgba(88,200,255,0.2), transparent 28%), radial-gradient(circle at 80% 12%, rgba(45,124,255,0.24), transparent 25%), linear-gradient(180deg, #050c15 0%, #09111c 44%, #040913 100%)',
+        panel: 'var(--shadow-glow)',
+        soft:  '0 12px 32px rgba(53, 149, 193, 0.12)',
       },
       fontFamily: {
-        sans: ['var(--font-sora)', '"Segoe UI"', 'sans-serif'],
+        sans:    ['var(--font-sora)', '"Segoe UI"', 'sans-serif'],
         display: ['var(--font-oxanium)', '"Segoe UI"', 'sans-serif'],
       },
     },
