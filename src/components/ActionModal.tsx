@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { translateColorLabel, translateVariationValue } from '@/lib/i18n/content'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 import { useLocale, useTranslations } from '@/components/providers/LocaleProvider'
+import { useRequestQueue } from '@/contexts/RequestQueueContext'
+import { isNetworkError } from '@/lib/queue/request-queue'
 import type { CatalogProduct, CatalogVariant } from '@/types/catalog'
 import type { UserAccount } from '@/types/account'
 import type { ChangeRequestType, RequestedCatalogAction } from '@/types/request'
@@ -59,6 +61,7 @@ function getSelectableVariants(item: SelectedCatalogAction | null) {
 export function ActionModal({ open, operator, item, onClose, onCreated }: ActionModalProps) {
   const t = useTranslations()
   const { locale } = useLocale()
+  const { addJsonRequest } = useRequestQueue()
   const [estoqueGeral, setEstoqueGeral] = useState('')
   const [selectedVariantSkus, setSelectedVariantSkus] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -114,23 +117,23 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
       return
     }
 
+    const requestBody = {
+      operadorEmail: currentOperator.email,
+      clienteCod: currentItem.product.clienteCod,
+      loja: currentItem.product.loja,
+      skuBase: currentItem.product.skuBase,
+      skuVariacao: currentItem.variant?.sku,
+      titulo: currentItem.product.titulo,
+      tipoAlteracao: requestType,
+      variacoesSelecionadas: selectedVariantSkus,
+      estoqueGeral: needsStock ? Number(estoqueGeral) : undefined,
+    }
+
     try {
       const response = await fetch('/api/solicitacoes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operadorEmail: currentOperator.email,
-          clienteCod: currentItem.product.clienteCod,
-          loja: currentItem.product.loja,
-          skuBase: currentItem.product.skuBase,
-          skuVariacao: currentItem.variant?.sku,
-          titulo: currentItem.product.titulo,
-          tipoAlteracao: requestType,
-          variacoesSelecionadas: selectedVariantSkus,
-          estoqueGeral: needsStock ? Number(estoqueGeral) : undefined,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
       })
 
       const payload = await response.json()
@@ -147,10 +150,24 @@ export function ActionModal({ open, operator, item, onClose, onCreated }: Action
       })
       window.setTimeout(() => onClose(), 700)
     } catch (error) {
-      setFeedback({
-        type: 'error',
-        message: error instanceof Error ? error.message : 'Falha ao salvar solicitacao.',
-      })
+      if (isNetworkError(error) || !navigator.onLine) {
+        const acao = currentItem.requestedAction === 'ativar' ? 'Ativar' : 'Inativar'
+        await addJsonRequest(
+          '/api/solicitacoes',
+          requestBody,
+          `${acao} — ${currentItem.product.titulo} (${currentItem.product.skuBase})`,
+        )
+        setFeedback({
+          type: 'success',
+          message: 'Sem conexão. Solicitação salva e será enviada automaticamente quando a internet voltar.',
+        })
+        window.setTimeout(() => onClose(), 2000)
+      } else {
+        setFeedback({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Falha ao salvar solicitacao.',
+        })
+      }
     } finally {
       setSubmitting(false)
     }

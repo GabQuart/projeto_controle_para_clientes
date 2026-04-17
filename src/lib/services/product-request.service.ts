@@ -26,6 +26,7 @@ import type {
 import type { ChangeRequestFilters, RequestHistoryEntry, RequestHistoryStatus } from '@/types/request'
 import { createAdminClient } from '@/utils/supabase/admin'
 
+const PRODUCT_REQUESTS_SHEET_ID = process.env.GOOGLE_PRODUCT_REQUESTS_SHEET_ID ?? ''
 const PRODUCT_REQUESTS_UPLOAD_FOLDER_ID =
   process.env.GOOGLE_PRODUCT_REQUESTS_UPLOAD_FOLDER_ID ?? process.env.GOOGLE_DRIVE_FOLDER_ID ?? ''
 const PRODUCT_REQUESTS_DRIVE_ROOT = process.env.GOOGLE_PRODUCT_REQUESTS_DRIVE_ROOT_NAME ?? 'solicitacoes_produto'
@@ -312,7 +313,7 @@ function validateImages(images: ProductRequestImageUpload[]) {
   return images
 }
 
-function validateSizeChartEntries(sizes: string[], entries: ProductRequestSizeMeasureEntry[]) {
+function normalizeSizeChartEntries(sizes: string[], entries: ProductRequestSizeMeasureEntry[]) {
   const selectedSizes = unique(sizes)
   const normalizedEntries = entries
     .map((entry) => ({
@@ -329,18 +330,13 @@ function validateSizeChartEntries(sizes: string[], entries: ProductRequestSizeMe
     entryMap.set(entry.size, current)
   })
 
-  const missingSizes = selectedSizes.filter((size) => (entryMap.get(size) ?? []).length === 0)
-
-  if (missingSizes.length > 0) {
-    throw new Error(`Preencha a tabela de medidas para: ${missingSizes.join(', ')}.`)
-  }
-
-  return selectedSizes.flatMap((size) =>
-    (entryMap.get(size) ?? []).map((measurement) => ({
-      size,
-      measurement,
-    })),
-  )
+  // Tamanhos sem medidas recebem "TU" (Tamanho Único) como fallback
+  return selectedSizes.flatMap((size) => {
+    const measurements = entryMap.get(size) ?? []
+    return measurements.length > 0
+      ? measurements.map((measurement) => ({ size, measurement }))
+      : [{ size, measurement: 'TU' }]
+  })
 }
 
 function serializeSizeChart(entries: ProductRequestSizeMeasureEntry[]) {
@@ -568,7 +564,7 @@ export async function createProductRequest(input: CreateProductRequestInput) {
   const productName = compactText(input.productName)
   const notes = compactText(input.notes ?? '')
   const sizes = unique(input.sizes)
-  const sizeChartEntries = validateSizeChartEntries(sizes, input.sizeChartEntries)
+  const sizeChartEntries = normalizeSizeChartEntries(sizes, input.sizeChartEntries)
   const sizeChart = serializeSizeChart(sizeChartEntries)
   const variationType = input.variationType
   const variations = validateVariationValues(input.variations, variationType)
@@ -661,6 +657,8 @@ export async function createProductRequest(input: CreateProductRequestInput) {
         variacoes: record.variations,
         custo: record.productCost,
         observacoes: record.notes,
+        tabelaMedidas: record.sizeChart,
+        dataPedido: new Date(record.createdAt),
       })
 
       const cardId = await createTrelloCard({

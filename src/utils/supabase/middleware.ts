@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSupabasePublicEnv } from '@/lib/env'
+import { fetchWithTimeout } from '@/utils/supabase/fetch-with-timeout'
 
 const PROTECTED_ROUTES = ['/catalogo', '/historico', '/contas']
 
@@ -15,6 +16,7 @@ export async function updateSession(request: NextRequest) {
   })
 
   const supabase = createServerClient(url, publishableKey, {
+    global: { fetch: fetchWithTimeout },
     cookies: {
       getAll() {
         return request.cookies.getAll()
@@ -29,9 +31,13 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  let user = null
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch {
+    // Supabase inacessível — permite a requisição sem autenticação
+  }
 
   if (!user && isProtectedPath(request.nextUrl.pathname)) {
     const loginUrl = request.nextUrl.clone()

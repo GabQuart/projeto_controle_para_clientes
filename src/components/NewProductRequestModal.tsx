@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertModal } from '@/components/AlertModal'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 import { useLocale, useTranslations } from '@/components/providers/LocaleProvider'
+import { useRequestQueue } from '@/contexts/RequestQueueContext'
+import { isNetworkError } from '@/lib/queue/request-queue'
 import { translateColorLabel } from '@/lib/i18n/content'
 import type { UserAccount } from '@/types/account'
 import type {
@@ -90,6 +92,7 @@ function buildSizeChartEntries(sizes: string[], valuesBySize: SizeMeasurementMap
 export function NewProductRequestModal({ open, account, onClose, onCreated, onSuccessMessage }: NewProductRequestModalProps) {
   const t = useTranslations()
   const { locale } = useLocale()
+  const { addFormRequest } = useRequestQueue()
   const [options, setOptions] = useState<ProductRequestOptions>(EMPTY_OPTIONS)
   const [loadingOptions, setLoadingOptions] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -324,10 +327,10 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
     setFeedback(null)
     setCreatedRequest(null)
 
-    try {
-      const variations = variationType === 'cores' ? selectedColors : filledStampFields
-      const sizeChartEntries = buildSizeChartEntries(orderedSelectedSizes, sizeMeasurements)
+    const variations = variationType === 'cores' ? selectedColors : filledStampFields
+    const sizeChartEntries = buildSizeChartEntries(orderedSelectedSizes, sizeMeasurements)
 
+    try {
       if (!productName.trim()) {
         throw new Error(t('productRequest.validation.title'))
       }
@@ -344,27 +347,27 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
         throw new Error(t('productRequest.validation.images'))
       }
 
-      const missingMeasurements = orderedSelectedSizes.filter(
-        (size) => !sizeChartEntries.some((entry) => entry.size === size && entry.measurement),
-      )
-
-      if (missingMeasurements.length > 0) {
-        throw new Error(`Preencha a tabela de medidas para: ${missingMeasurements.join(', ')}.`)
+      const fields: Record<string, string> = {
+        store,
+        productName,
+        productCost,
+        sizes: JSON.stringify(orderedSelectedSizes),
+        sizeChartEntries: JSON.stringify(sizeChartEntries),
+        variationType,
+        variations: JSON.stringify(variations),
+        notes,
       }
 
-      const formData = new FormData()
-      formData.set('store', store)
-      formData.set('productName', productName)
-      formData.set('productCost', productCost)
-      formData.set('sizes', JSON.stringify(orderedSelectedSizes))
-      formData.set('sizeChartEntries', JSON.stringify(sizeChartEntries))
-      formData.set('variationType', variationType)
-      formData.set('variations', JSON.stringify(variations))
-      formData.set('notes', notes)
+      const rawFiles = selectedImages.map((image) => ({
+        fieldName: 'images',
+        file: image.file,
+      }))
 
-      selectedImages.forEach((image) => {
-        formData.append('images', image.file)
-      })
+      const formData = new FormData()
+      for (const [key, value] of Object.entries(fields)) {
+        formData.set(key, value)
+      }
+      rawFiles.forEach(({ file }) => formData.append('images', file))
 
       const response = await fetch('/api/solicitacoes-produto', {
         method: 'POST',
@@ -381,11 +384,37 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
       onSuccessMessage?.(t('productRequest.success'))
       handleClose()
     } catch (error) {
-      setFeedback({
-        type: 'error',
-        message: error instanceof Error ? error.message : 'Falha ao enviar solicitacao de produto',
-      })
-      setAlertMessage(error instanceof Error ? error.message : 'Falha ao enviar solicitacao de produto')
+      if (isNetworkError(error) || !navigator.onLine) {
+        const fields: Record<string, string> = {
+          store,
+          productName,
+          productCost,
+          sizes: JSON.stringify(orderedSelectedSizes),
+          sizeChartEntries: JSON.stringify(sizeChartEntries),
+          variationType,
+          variations: JSON.stringify(variations),
+          notes,
+        }
+
+        await addFormRequest(
+          '/api/solicitacoes-produto',
+          fields,
+          selectedImages.map((image) => ({ fieldName: 'images', file: image.file })),
+          `Novo produto — ${productName} (${store})`,
+        )
+
+        setFeedback({
+          type: 'success',
+          message: 'Sem conexão. Solicitação salva e será enviada automaticamente quando a internet voltar.',
+        })
+        window.setTimeout(() => handleClose(), 2500)
+      } else {
+        setFeedback({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'Falha ao enviar solicitacao de produto',
+        })
+        setAlertMessage(error instanceof Error ? error.message : 'Falha ao enviar solicitacao de produto')
+      }
     } finally {
       setSubmitting(false)
     }

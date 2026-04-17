@@ -15,6 +15,21 @@ type CatalogCachePayload = {
 let memoryCache: CatalogCachePayload | null = null
 let pendingRefresh: Promise<CatalogCachePayload> | null = null
 
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 1500): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      if (attempt < retries - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)))
+      }
+    }
+  }
+  throw lastError
+}
+
 function getCacheTtlMs() {
   const minutes = Math.max(1, getOptionalIntEnv('CATALOG_CACHE_TTL_MINUTES', DEFAULT_CACHE_TTL_MINUTES))
   return minutes * 60 * 1000
@@ -84,16 +99,40 @@ export async function getCatalogCache(
     if (diskCache && isFresh(diskCache.updatedAt)) {
       memoryCache = diskCache
 
-        return {
-          items: diskCache.items,
-          metadata: {
-            updatedAt: diskCache.updatedAt,
-            source: 'cache',
+      return {
+        items: diskCache.items,
+        metadata: {
+          updatedAt: diskCache.updatedAt,
+          source: 'cache',
+        } satisfies CatalogCacheMetadata,
+      }
+    }
+
+    // Cache desatualizado mas existe — entrega imediatamente e atualiza em segundo plano
+    if (diskCache) {
+      memoryCache = diskCache
+
+      if (!pendingRefresh) {
+        pendingRefresh = (async () => {
+          const items = await withRetry(loader)
+          const payload = { updatedAt: new Date().toISOString(), items }
+          await persistPayload(payload)
+          return payload
+        })()
+        pendingRefresh.finally(() => { pendingRefresh = null })
+      }
+
+      return {
+        items: diskCache.items,
+        metadata: {
+          updatedAt: diskCache.updatedAt,
+          source: 'cache-stale',
         } satisfies CatalogCacheMetadata,
       }
     }
   }
 
+  // Sem cache nenhum — carrega bloqueando (só na primeira vez)
   if (pendingRefresh) {
     const payload = await pendingRefresh
 
@@ -107,7 +146,7 @@ export async function getCatalogCache(
   }
 
   pendingRefresh = (async () => {
-    const items = await loader()
+    const items = await withRetry(loader)
     const payload = {
       updatedAt: new Date().toISOString(),
       items,

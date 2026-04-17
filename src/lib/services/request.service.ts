@@ -5,6 +5,7 @@ import {
   createTrelloCard,
   buildOperationalCardName,
   buildOperationalCardDesc,
+  findTrelloLabelId,
 } from '@/lib/services/trello.service'
 import { getCatalogSnapshotItem, updateCatalogVariantStatuses } from '@/lib/services/catalog.service'
 import { listProductRequestHistory } from '@/lib/services/product-request.service'
@@ -435,19 +436,31 @@ async function createRequestInternal(
 
   // ── Cria card no Trello (se configurado) ──────────────────────────────────
   const trelloListId = process.env.TRELLO_LIST_ATIVACAO_ENTRADA_ID ?? ''
+  const trelloBoardId = process.env.TRELLO_BOARD_ATIVACAO_ID ?? ''
 
   if (isTrelloConfigured() && trelloListId) {
     try {
-      const cardName = buildOperationalCardName(request.tipoAlteracao, request.titulo, request.skuBase)
-      const cardDesc = buildOperationalCardDesc({
-        loja: request.loja,
-        operadorNome: request.operadorNome,
-        variacoes: request.variacoesSelecionadas ?? [],
-        estoqueGeral: request.estoqueGeral,
-        detalhe: request.detalhe,
-      })
+      const isAtivar = request.tipoAlteracao === 'ativar_produto' || request.tipoAlteracao === 'ativar_variacao'
+      const labelName = isAtivar ? 'ATIVAR' : 'INATIVAR'
 
-      const cardId = await createTrelloCard({ listId: trelloListId, name: cardName, desc: cardDesc })
+      const [cardName, cardDesc, labelId] = await Promise.all([
+        Promise.resolve(buildOperationalCardName(request.tipoAlteracao, request.titulo, request.skuBase)),
+        Promise.resolve(buildOperationalCardDesc({
+          loja: request.loja,
+          operadorNome: request.operadorNome,
+          variacoes: request.variacoesSelecionadas ?? [],
+          estoqueGeral: request.estoqueGeral,
+          detalhe: request.detalhe,
+        })),
+        trelloBoardId ? findTrelloLabelId(trelloBoardId, labelName) : Promise.resolve(''),
+      ])
+
+      const cardId = await createTrelloCard({
+        listId: trelloListId,
+        name: cardName,
+        desc: cardDesc,
+        ...(labelId ? { labelIds: [labelId] } : {}),
+      })
 
       if (cardId) {
         await updateRowsByLookup(OUTPUT_SHEET_ID, sheetName, 'id', [

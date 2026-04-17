@@ -8,6 +8,8 @@ import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { LocaleProvider } from '@/components/providers/LocaleProvider'
 import { ThemeProvider, type AppTheme, THEME_COOKIE } from '@/components/providers/ThemeProvider'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { RequestQueueProvider } from '@/contexts/RequestQueueContext'
+import { QueueStatusBadge } from '@/components/QueueStatusBadge'
 import { getAuthenticatedAccount } from '@/lib/services/account.service'
 import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, getMessages, isSupportedLocale, resolveMessage, type AppLocale } from '@/lib/i18n/messages'
 import './globals.css'
@@ -87,7 +89,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const theme: AppTheme = rawTheme === 'light' ? 'light' : 'dark'
   const isRtl = locale === 'ar'
   const t = getMessages(locale)
-  const account = await getAuthenticatedAccount().catch(() => null)
+  const account = await Promise.race([
+    getAuthenticatedAccount().catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+  ])
   const visibleNavItems = NAV_ITEMS.filter((item) => !item.adminOnly || account?.role === 'admin')
 
   return (
@@ -95,6 +100,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body className={`${sora.variable} ${oxanium.variable} font-sans`}>
         <ThemeProvider initialTheme={theme}>
         <LocaleProvider initialLocale={locale}>
+        <RequestQueueProvider>
           <div className="grid-shell min-h-screen">
             <header className="sticky top-0 z-40 border-b bg-slate/80 backdrop-blur-xl" style={{ borderColor: 'var(--border-subtle)' }}>
               <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -122,6 +128,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
                   <div className="flex w-full min-w-0 flex-col gap-2 sm:gap-3 lg:w-auto lg:items-end">
                     <div className="flex items-center justify-end gap-2">
+                      <QueueStatusBadge />
                       <LanguageSwitcher />
                       <ThemeToggle />
                     </div>
@@ -146,6 +153,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             </header>
             {children}
           </div>
+        </RequestQueueProvider>
         </LocaleProvider>
         </ThemeProvider>
       </body>

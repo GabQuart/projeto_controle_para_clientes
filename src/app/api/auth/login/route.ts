@@ -33,7 +33,25 @@ export async function POST(request: NextRequest) {
       return createRouteHandlerClient(request).json({ error: 'Informe e-mail e senha para entrar.' }, { status: 400 })
     }
 
-    const account = await getPublicAccountStatusByEmail(email)
+    let account = null
+    let lastLoginError: unknown
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        account = await getPublicAccountStatusByEmail(email)
+        break
+      } catch (err) {
+        lastLoginError = err
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)))
+      }
+    }
+
+    if (lastLoginError && account === null) {
+      const isNetwork = lastLoginError instanceof TypeError && lastLoginError.message.toLowerCase().includes('fetch')
+      const msg = isNetwork
+        ? 'Sem conexão com o servidor. Verifique sua internet e tente novamente.'
+        : lastLoginError instanceof Error ? lastLoginError.message : 'Falha ao verificar conta.'
+      return createRouteHandlerClient(request).json({ error: msg }, { status: 503 })
+    }
 
     if (!account?.ativo) {
       return createRouteHandlerClient(request).json(

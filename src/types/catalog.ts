@@ -52,5 +52,5 @@ export type CatalogPagination = {
 
 export type CatalogCacheMetadata = {
   updatedAt: string
-  source: 'cache' | 'supabase'
+  source: 'cache' | 'cache-stale' | 'supabase'
 }

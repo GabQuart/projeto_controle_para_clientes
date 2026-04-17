@@ -1,12 +1,14 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabasePublicEnv } from '@/lib/env'
+import { fetchWithTimeout } from '@/utils/supabase/fetch-with-timeout'
 
 export function createRouteHandlerClient(request: NextRequest) {
   const { url, publishableKey } = getSupabasePublicEnv()
   let cookieCarrier = NextResponse.json({})
 
   const supabase = createServerClient(url, publishableKey, {
+    global: { fetch: fetchWithTimeout },
     cookies: {
       getAll() {
         return request.cookies.getAll()
