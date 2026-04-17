@@ -17,12 +17,24 @@ import type {
   ProductRequestVariationType,
 } from '@/types/product-request'
 
+// ─── Tipos locais ─────────────────────────────────────────────────────────────
+
 type SelectedImage = {
   file: File
   previewUrl: string
 }
 
-type SizeMeasurementMap = Record<string, string[]>
+type MeasurementRow = {
+  type: string  // selecionado do dropdown
+  value: string // campo de texto
+}
+
+type SizeSections = {
+  superior: MeasurementRow[]
+  inferior: MeasurementRow[]
+}
+
+type SizeMeasurementMap = Record<string, SizeSections>
 
 type NewProductRequestModalProps = {
   open: boolean
@@ -32,6 +44,8 @@ type NewProductRequestModalProps = {
   onSuccessMessage?: (message: string) => void
 }
 
+// ─── Constantes ───────────────────────────────────────────────────────────────
+
 const MAX_IMAGE_FILES = 8
 
 const EMPTY_OPTIONS: ProductRequestOptions = {
@@ -39,6 +53,47 @@ const EMPTY_OPTIONS: ProductRequestOptions = {
   colors: [],
   stores: [],
 }
+
+const MEASURE_TYPES = [
+  'Comprimento',
+  'Comprimento total',
+  'Comprimento interno',
+  'Largura',
+  'Altura',
+  'Profundidade',
+  'Manga',
+  'Ombro',
+  'Peito',
+  'Busto',
+  'Tórax',
+  'Cintura',
+  'Quadril',
+  'Gancho',
+  'Gancho frontal',
+  'Gancho traseiro',
+  'Entrepernas',
+  'Coxa',
+  'Joelho',
+  'Barra',
+  'Boca da barra',
+  'Punho',
+  'Gola',
+  'Decote',
+  'Costas',
+  'Palmilha',
+  'Largura da palmilha',
+  'Altura do cano',
+  'Circunferência',
+  'Circunferência do cano',
+  'Diâmetro',
+  'Salto',
+  'Plataforma',
+  'Alça',
+] as const
+
+const EMPTY_ROW: MeasurementRow = { type: '', value: '' }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function createInitialStampFields() {
   return ['']
@@ -73,21 +128,60 @@ function ensureTrailingEmptyField(values: string[]) {
   return nextValues
 }
 
+function ensureTrailingEmptyRow(rows: MeasurementRow[]): MeasurementRow[] {
+  const next = [...rows]
+  const last = next[next.length - 1]
+
+  if (!last || last.value.trim()) {
+    next.push({ ...EMPTY_ROW })
+  }
+
+  return next
+}
+
 function uniqueTrimmed(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
 }
 
-function buildSizeChartEntries(sizes: string[], valuesBySize: SizeMeasurementMap): ProductRequestSizeMeasureEntry[] {
-  return sizes.flatMap((size) =>
-    (valuesBySize[size] ?? [])
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .map((measurement) => ({
+function buildSizeChartEntries(
+  sizes: string[],
+  sectionsBySize: SizeMeasurementMap,
+  hasInferior: boolean,
+): ProductRequestSizeMeasureEntry[] {
+  return sizes.flatMap((size) => {
+    const sections = sectionsBySize[size]
+    if (!sections) return []
+
+    const superiorEntries: ProductRequestSizeMeasureEntry[] = sections.superior
+      .filter((row) => row.value.trim())
+      .map((row) => ({
         size,
-        measurement,
-      })),
-  )
+        measurement: row.type ? `${row.type}: ${row.value.trim()}` : row.value.trim(),
+        ...(hasInferior ? { section: 'superior' as const } : {}),
+      }))
+
+    const inferiorEntries: ProductRequestSizeMeasureEntry[] = hasInferior
+      ? sections.inferior
+          .filter((row) => row.value.trim())
+          .map((row) => ({
+            size,
+            measurement: row.type ? `${row.type}: ${row.value.trim()}` : row.value.trim(),
+            section: 'inferior' as const,
+          }))
+      : []
+
+    return [...superiorEntries, ...inferiorEntries]
+  })
 }
+
+function initSizeSections(existing?: SizeSections): SizeSections {
+  return {
+    superior: existing?.superior?.length ? existing.superior : [{ ...EMPTY_ROW }],
+    inferior: existing?.inferior?.length ? existing.inferior : [{ ...EMPTY_ROW }],
+  }
+}
+
+// ─── Componente ───────────────────────────────────────────────────────────────
 
 export function NewProductRequestModal({ open, account, onClose, onCreated, onSuccessMessage }: NewProductRequestModalProps) {
   const t = useTranslations()
@@ -104,6 +198,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
   const [productCost, setProductCost] = useState('')
   const [selectedSizes, setSelectedSizes] = useState<string[]>([])
   const [sizeMeasurements, setSizeMeasurements] = useState<SizeMeasurementMap>({})
+  const [hasInferiorSection, setHasInferiorSection] = useState(false)
   const [expandedSizeGroups, setExpandedSizeGroups] = useState<Record<string, boolean>>({})
   const [variationType, setVariationType] = useState<ProductRequestVariationType>('cores')
   const [selectedColors, setSelectedColors] = useState<string[]>([])
@@ -204,26 +299,19 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
     return orderedCodes.filter((code) => selectedSizes.includes(code))
   }, [options.sizeGroups, selectedSizes])
 
+  // Sincroniza sizeMeasurements com os tamanhos selecionados
   useEffect(() => {
     setSizeMeasurements((current) => {
-      const nextEntries = Object.fromEntries(
-        orderedSelectedSizes.map((size) => {
-          const existing = current[size] ?? ['']
-          return [size, ensureTrailingEmptyField(existing)]
-        }),
-      )
+      const prevKeys = Object.keys(current).sort().join(',')
+      const nextKeys = [...orderedSelectedSizes].sort().join(',')
 
-      const currentKeys = Object.keys(current)
-      const nextKeys = Object.keys(nextEntries)
-      const isSameShape =
-        currentKeys.length === nextKeys.length &&
-        nextKeys.every((key) => {
-          const currentValues = current[key] ?? []
-          const nextValues = nextEntries[key] ?? []
-          return currentValues.length === nextValues.length && currentValues.every((value, index) => value === nextValues[index])
-        })
+      if (prevKeys === nextKeys) return current
 
-      return isSameShape ? current : nextEntries
+      const nextEntries: SizeMeasurementMap = {}
+      for (const size of orderedSelectedSizes) {
+        nextEntries[size] = initSizeSections(current[size])
+      }
+      return nextEntries
     })
   }, [orderedSelectedSizes])
 
@@ -242,6 +330,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
     setProductCost('')
     setSelectedSizes([])
     setSizeMeasurements({})
+    setHasInferiorSection(false)
     setExpandedSizeGroups({})
     setVariationType('cores')
     setSelectedColors([])
@@ -267,15 +356,52 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
     }))
   }
 
-  function handleSizeMeasurementChange(size: string, index: number, value: string) {
+  function handleMeasurementChange(
+    size: string,
+    section: 'superior' | 'inferior',
+    index: number,
+    field: 'type' | 'value',
+    newValue: string,
+  ) {
     setSizeMeasurements((current) => {
-      const currentValues = [...(current[size] ?? [''])]
-      currentValues[index] = value
+      const currentSections = current[size] ?? initSizeSections()
+      const currentRows = [...(currentSections[section] ?? [{ ...EMPTY_ROW }])]
+      currentRows[index] = { ...currentRows[index], [field]: newValue }
+
+      // Auto-adiciona linha vazia ao digitar no último campo de valor
+      const updatedRows = field === 'value' ? ensureTrailingEmptyRow(currentRows) : currentRows
 
       return {
         ...current,
-        [size]: ensureTrailingEmptyField(currentValues),
+        [size]: { ...currentSections, [section]: updatedRows },
       }
+    })
+  }
+
+  function addInferiorSection() {
+    setSizeMeasurements((current) => {
+      const next = { ...current }
+      for (const size of orderedSelectedSizes) {
+        next[size] = {
+          superior: next[size]?.superior?.length ? next[size].superior : [{ ...EMPTY_ROW }],
+          inferior: next[size]?.inferior?.some((r) => r.value || r.type)
+            ? next[size].inferior
+            : [{ ...EMPTY_ROW }],
+        }
+      }
+      return next
+    })
+    setHasInferiorSection(true)
+  }
+
+  function removeInferiorSection() {
+    setHasInferiorSection(false)
+    setSizeMeasurements((current) => {
+      const next = { ...current }
+      for (const size of Object.keys(next)) {
+        next[size] = { superior: next[size].superior, inferior: [{ ...EMPTY_ROW }] }
+      }
+      return next
     })
   }
 
@@ -328,7 +454,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
     setCreatedRequest(null)
 
     const variations = variationType === 'cores' ? selectedColors : filledStampFields
-    const sizeChartEntries = buildSizeChartEntries(orderedSelectedSizes, sizeMeasurements)
+    const sizeChartEntries = buildSizeChartEntries(orderedSelectedSizes, sizeMeasurements, hasInferiorSection)
 
     try {
       if (!productName.trim()) {
@@ -420,6 +546,8 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
     }
   }
 
+  // ─── Render ─────────────────────────────────────────────────────────────────
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-0 backdrop-blur-sm sm:items-center sm:p-4">
       <div className="panel flex h-[100dvh] w-full flex-col overflow-hidden rounded-none sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-5xl sm:rounded-[28px]">
@@ -479,6 +607,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             />
           </label>
 
+          {/* ── Tamanhos ─────────────────────────────────────────────────── */}
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.sizes')} <span className="text-clay">*</span></p>
             <div className="grid gap-4">
@@ -527,6 +656,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             </div>
           </section>
 
+          {/* ── Tabela de Medidas ─────────────────────────────────────────── */}
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.sizeTable')}</p>
@@ -534,32 +664,119 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             </div>
 
             {orderedSelectedSizes.length > 0 ? (
-              <div className="brand-scrollbar flex snap-x gap-3 overflow-x-auto pb-2">
-                {orderedSelectedSizes.map((size) => (
-                  <div
-                    key={`measure-${size}`}
-                    className="brand-chip min-w-[220px] snap-start rounded-3xl p-4 sm:min-w-[240px]"
+              <>
+                <div className="brand-scrollbar flex snap-x gap-3 overflow-x-auto pb-2">
+                  {orderedSelectedSizes.map((size) => {
+                    const sections = sizeMeasurements[size] ?? initSizeSections()
+                    const filledCount = [
+                      ...sections.superior,
+                      ...(hasInferiorSection ? sections.inferior : []),
+                    ].filter((row) => row.value.trim()).length
+
+                    return (
+                      <div
+                        key={`measure-${size}`}
+                        className="brand-chip min-w-[300px] snap-start rounded-3xl p-4 sm:min-w-[320px]"
+                      >
+                        {/* Cabeçalho do card */}
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber">Tam. {size}</p>
+                          <span className="text-[11px] uppercase tracking-[0.14em] text-steel">
+                            {t('productRequest.sizeMeasurements', { count: filledCount })}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 space-y-2">
+                          {/* Label Superior (só aparece quando seção inferior está ativa) */}
+                          {hasInferiorSection && (
+                            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cobalt">
+                              Superior
+                            </p>
+                          )}
+
+                          {/* Linhas de medida — Superior */}
+                          {sections.superior.map((row, index) => (
+                            <div key={`sup-${index}`} className="flex gap-1.5">
+                              <select
+                                value={row.type}
+                                onChange={(e) => handleMeasurementChange(size, 'superior', index, 'type', e.target.value)}
+                                className="w-[130px] shrink-0 rounded-xl border border-white/10 bg-night/50 px-2 py-2 text-[11px] text-ink outline-none transition focus:border-amber/40 sm:w-[148px]"
+                              >
+                                <option value="">Medida</option>
+                                {MEASURE_TYPES.map((mt) => (
+                                  <option key={mt} value={mt} className="bg-slate">
+                                    {mt}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                value={row.value}
+                                onChange={(e) => handleMeasurementChange(size, 'superior', index, 'value', e.target.value)}
+                                className="min-w-0 flex-1 rounded-xl border border-white/10 bg-night/40 px-3 py-2 text-sm text-ink outline-none transition focus:border-amber/40"
+                                placeholder={index === 0 ? t('productRequest.sizePlaceholderFirst') : t('productRequest.sizePlaceholderNext')}
+                              />
+                            </div>
+                          ))}
+
+                          {/* Seção Inferior */}
+                          {hasInferiorSection && (
+                            <>
+                              <div className="my-1 border-t border-white/10 pt-1">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-pine">
+                                  Inferior
+                                </p>
+                              </div>
+                              {sections.inferior.map((row, index) => (
+                                <div key={`inf-${index}`} className="flex gap-1.5">
+                                  <select
+                                    value={row.type}
+                                    onChange={(e) => handleMeasurementChange(size, 'inferior', index, 'type', e.target.value)}
+                                    className="w-[130px] shrink-0 rounded-xl border border-white/10 bg-night/50 px-2 py-2 text-[11px] text-ink outline-none transition focus:border-amber/40 sm:w-[148px]"
+                                  >
+                                    <option value="">Medida</option>
+                                    {MEASURE_TYPES.map((mt) => (
+                                      <option key={mt} value={mt} className="bg-slate">
+                                        {mt}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <input
+                                    value={row.value}
+                                    onChange={(e) => handleMeasurementChange(size, 'inferior', index, 'value', e.target.value)}
+                                    className="min-w-0 flex-1 rounded-xl border border-white/10 bg-night/40 px-3 py-2 text-sm text-ink outline-none transition focus:border-amber/40"
+                                    placeholder={index === 0 ? t('productRequest.sizePlaceholderFirst') : t('productRequest.sizePlaceholderNext')}
+                                  />
+                                </div>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Botão adicionar / remover seção inferior */}
+                {!hasInferiorSection ? (
+                  <button
+                    type="button"
+                    onClick={addInferiorSection}
+                    className="brand-chip inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/40 hover:text-pine"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber">Tam. {size}</p>
-                      <span className="text-[11px] uppercase tracking-[0.14em] text-steel">
-                        {t('productRequest.sizeMeasurements', { count: sizeMeasurements[size]?.filter((value) => value.trim()).length || 0 })}
-                      </span>
-                    </div>
-                    <div className="mt-3 grid gap-3">
-                      {(sizeMeasurements[size] ?? ['']).map((value, index) => (
-                        <input
-                          key={`${size}-${index}`}
-                          value={value}
-                          onChange={(event) => handleSizeMeasurementChange(size, index, event.target.value)}
-                          className="w-full rounded-2xl border border-white/10 bg-night/40 px-4 py-3 text-base text-ink outline-none transition focus:border-amber/40 sm:text-sm"
-                          placeholder={index === 0 ? t('productRequest.sizePlaceholderFirst') : t('productRequest.sizePlaceholderNext')}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full border border-pine/50 text-[11px] font-bold text-pine">+</span>
+                    Adicionar Medidas Inferiores
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={removeInferiorSection}
+                    className="brand-chip inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-clay transition hover:border-clay/40"
+                  >
+                    <span className="text-base leading-none">✕</span>
+                    Remover seção inferior
+                  </button>
+                )}
+              </>
             ) : (
               <div className="brand-chip rounded-2xl px-4 py-3 text-sm text-steel">
                 {t('productRequest.sizeEmpty')}
@@ -567,6 +784,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             )}
           </section>
 
+          {/* ── Variações ─────────────────────────────────────────────────── */}
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <div className="rounded-3xl border border-cobalt/25 bg-cobalt/10 p-3 sm:p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">{t('productRequest.variationType')}</p>
@@ -646,6 +864,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             )}
           </section>
 
+          {/* ── Imagens ───────────────────────────────────────────────────── */}
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.images')} <span className="text-clay">*</span></p>
             <p className="text-sm text-steel">
@@ -710,6 +929,7 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
             ) : null}
           </section>
 
+          {/* ── Material / Observações ────────────────────────────────────── */}
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
             {t('productRequest.material')}
             <textarea

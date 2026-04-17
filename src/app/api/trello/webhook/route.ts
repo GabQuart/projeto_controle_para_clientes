@@ -7,8 +7,9 @@ import {
   type TrelloWebhookPayload,
 } from '@/lib/services/trello.service'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { updateRowsByLookup } from '@/lib/google/sheets'
+import { readSheetTab, updateRowsByLookup } from '@/lib/google/sheets'
 import { getOptionalEnv } from '@/lib/env'
+import { applyOperationalStatusChange } from '@/lib/services/request.service'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -112,7 +113,7 @@ async function concludeProductRequest(cardId: string): Promise<boolean> {
   return true
 }
 
-// ─── Concluir solicitação operacional (Google Sheets) ────────────────────────
+// ─── Concluir solicitação operacional (Google Sheets + Supabase) ─────────────
 
 async function concludeOperationalRequest(cardId: string): Promise<boolean> {
   const sheetId = OUTPUT_SHEET_ID()
@@ -123,6 +124,31 @@ async function concludeOperationalRequest(cardId: string): Promise<boolean> {
   }
 
   try {
+    const rows = await readSheetTab(sheetId, sheetName)
+    const row = rows.find((r) => r.trelloCardId === cardId)
+
+    if (!row) {
+      return false
+    }
+
+    const tipoAlteracao = row.tipoAlteracao as string
+    const skuBase = row.skuBase as string
+    const variacoesSelecionadas: string[] = (() => {
+      try {
+        const parsed = JSON.parse(row.variacoesSelecionadas as string)
+        return Array.isArray(parsed) ? (parsed as string[]) : []
+      } catch {
+        return []
+      }
+    })()
+
+    const isActivation = tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao'
+    const isDeactivation = tipoAlteracao === 'inativar_produto' || tipoAlteracao === 'inativar_variacao'
+
+    if ((isActivation || isDeactivation) && skuBase && variacoesSelecionadas.length > 0) {
+      await applyOperationalStatusChange(skuBase, variacoesSelecionadas, isActivation)
+    }
+
     await updateRowsByLookup(sheetId, sheetName, 'trelloCardId', [
       {
         key: cardId,
@@ -135,7 +161,8 @@ async function concludeOperationalRequest(cardId: string): Promise<boolean> {
 
     console.info('[trello/webhook] Solicitacao operacional concluida, cardId:', cardId)
     return true
-  } catch {
+  } catch (err) {
+    console.error('[trello/webhook] Erro em concludeOperationalRequest:', err instanceof Error ? err.message : err)
     return false
   }
 }

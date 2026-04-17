@@ -3,6 +3,7 @@ export type ProductRequestVariationType = 'cores' | 'estampas' | 'variados'
 export type ProductRequestSizeMeasureEntry = {
   size: string
   measurement: string
+  section?: 'superior' | 'inferior'
 }
 
 export type ProductRequestSizeOption = {

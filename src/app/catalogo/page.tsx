@@ -14,6 +14,7 @@ import { SearchBar } from '@/components/SearchBar'
 import type { UserAccount } from '@/types/account'
 import type { CatalogPagination, CatalogProduct, CatalogStatusFilter, CatalogVariant } from '@/types/catalog'
 import type { RequestedCatalogAction } from '@/types/request'
+import type { PendingStatus } from '@/components/ProductRow'
 
 const PAGE_SIZE = 10
 
@@ -100,6 +101,7 @@ export default function CatalogoPage() {
   const [newProductRequestOpen, setNewProductRequestOpen] = useState(false)
   const [actionRefreshing, setActionRefreshing] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
+  const [pendingBySkuBase, setPendingBySkuBase] = useState<Record<string, PendingStatus>>({})
   const forceRefreshRef = useRef(false)
 
   useEffect(() => {
@@ -189,6 +191,32 @@ export default function CatalogoPage() {
     [account, currentPage, fornecedorFilter, router, search, statusFilter],
   )
 
+  const loadPendingRequests = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!account) return
+      try {
+        const response = await fetch('/api/solicitacoes?status=nao_concluido&tipoSolicitacao=operacional', {
+          signal,
+          cache: 'no-store',
+        })
+        if (!response.ok) return
+        const payload = await response.json() as { data?: { skuBase?: string; tipoAlteracao?: string }[] }
+        const map: Record<string, PendingStatus> = {}
+        for (const req of payload.data ?? []) {
+          if (!req.skuBase) continue
+          const isAtivacao = req.tipoAlteracao === 'ativar_produto' || req.tipoAlteracao === 'ativar_variacao'
+          const tipo: PendingStatus = isAtivacao ? 'ativacao' : 'inativacao'
+          const existing = map[req.skuBase]
+          map[req.skuBase] = !existing ? tipo : existing !== tipo ? 'ambos' : existing
+        }
+        setPendingBySkuBase(map)
+      } catch {
+        // Non-critical — don't surface error
+      }
+    },
+    [account],
+  )
+
   useEffect(() => {
     if (!account) {
       return
@@ -197,13 +225,14 @@ export default function CatalogoPage() {
     const controller = new AbortController()
     const timeout = window.setTimeout(() => {
       loadCatalog({ signal: controller.signal, forceRefresh: forceRefreshRef.current })
+      loadPendingRequests(controller.signal)
     }, 250)
 
     return () => {
       controller.abort()
       window.clearTimeout(timeout)
     }
-  }, [account, loadCatalog, refreshNonce])
+  }, [account, loadCatalog, loadPendingRequests, refreshNonce])
 
   const summary = useMemo(() => {
     const variants = products.reduce((total, product) => total + product.variacoes.length, 0)
@@ -425,7 +454,7 @@ export default function CatalogoPage() {
         {loading ? (
           <div className="panel rounded-3xl p-6 text-sm text-steel">{t('catalog.loading')}</div>
         ) : (
-          <ProductTable products={products} expandedIds={expandedIds} onToggle={toggleExpanded} onAction={handleOpenAction} />
+          <ProductTable products={products} expandedIds={expandedIds} onToggle={toggleExpanded} onAction={handleOpenAction} pendingBySkuBase={pendingBySkuBase} />
         )}
 
         {!loading ? (

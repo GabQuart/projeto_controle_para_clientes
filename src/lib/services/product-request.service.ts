@@ -315,41 +315,100 @@ function validateImages(images: ProductRequestImageUpload[]) {
 
 function normalizeSizeChartEntries(sizes: string[], entries: ProductRequestSizeMeasureEntry[]) {
   const selectedSizes = unique(sizes)
+  const hasSections = entries.some((e) => e.section)
+
   const normalizedEntries = entries
     .map((entry) => ({
       size: compactText(entry.size),
       measurement: compactText(entry.measurement),
+      section: entry.section,
     }))
     .filter((entry) => entry.size && entry.measurement)
 
-  const entryMap = new Map<string, string[]>()
+  if (!hasSections) {
+    // Formato original: apenas uma lista de medidas por tamanho
+    const entryMap = new Map<string, string[]>()
+    normalizedEntries.forEach((entry) => {
+      const current = entryMap.get(entry.size) ?? []
+      current.push(entry.measurement)
+      entryMap.set(entry.size, current)
+    })
+    return selectedSizes.flatMap((size) => {
+      const measurements = entryMap.get(size) ?? []
+      return measurements.length > 0
+        ? measurements.map((measurement) => ({ size, measurement }))
+        : [{ size, measurement: 'TU' }]
+    })
+  }
+
+  // Formato com seções superior/inferior
+  type SectionMap = { superior: string[]; inferior: string[] }
+  const sectionMap = new Map<string, SectionMap>()
 
   normalizedEntries.forEach((entry) => {
-    const current = entryMap.get(entry.size) ?? []
-    current.push(entry.measurement)
-    entryMap.set(entry.size, current)
+    const current = sectionMap.get(entry.size) ?? { superior: [], inferior: [] }
+    if (entry.section === 'inferior') {
+      current.inferior.push(entry.measurement)
+    } else {
+      current.superior.push(entry.measurement)
+    }
+    sectionMap.set(entry.size, current)
   })
 
-  // Tamanhos sem medidas recebem "TU" (Tamanho Único) como fallback
-  return selectedSizes.flatMap((size) => {
-    const measurements = entryMap.get(size) ?? []
-    return measurements.length > 0
-      ? measurements.map((measurement) => ({ size, measurement }))
-      : [{ size, measurement: 'TU' }]
+  return selectedSizes.flatMap((size): ProductRequestSizeMeasureEntry[] => {
+    const { superior, inferior } = sectionMap.get(size) ?? { superior: [], inferior: [] }
+    const superiorEntries: ProductRequestSizeMeasureEntry[] =
+      superior.length > 0
+        ? superior.map((m) => ({ size, measurement: m, section: 'superior' }))
+        : [{ size, measurement: 'TU', section: 'superior' }]
+    const inferiorEntries: ProductRequestSizeMeasureEntry[] = inferior.map((m) => ({
+      size,
+      measurement: m,
+      section: 'inferior',
+    }))
+    return [...superiorEntries, ...inferiorEntries]
   })
 }
 
 function serializeSizeChart(entries: ProductRequestSizeMeasureEntry[]) {
-  const groupedEntries = new Map<string, string[]>()
+  const hasSections = entries.some((e) => e.section)
+
+  if (!hasSections) {
+    const groupedEntries = new Map<string, string[]>()
+    entries.forEach((entry) => {
+      const current = groupedEntries.get(entry.size) ?? []
+      current.push(entry.measurement)
+      groupedEntries.set(entry.size, current)
+    })
+    return Array.from(groupedEntries.entries())
+      .map(([size, measurements]) => `${size}: ${measurements.join(' | ')}`)
+      .join('\n')
+  }
+
+  // Formato com seções: linhas separadas por seção por tamanho
+  const sizeOrder: string[] = []
+  type SectionMap = { superior: string[]; inferior: string[] }
+  const sectionMap = new Map<string, SectionMap>()
 
   entries.forEach((entry) => {
-    const current = groupedEntries.get(entry.size) ?? []
-    current.push(entry.measurement)
-    groupedEntries.set(entry.size, current)
+    if (!sizeOrder.includes(entry.size)) sizeOrder.push(entry.size)
+    const current = sectionMap.get(entry.size) ?? { superior: [], inferior: [] }
+    if (entry.section === 'inferior') {
+      current.inferior.push(entry.measurement)
+    } else {
+      current.superior.push(entry.measurement)
+    }
+    sectionMap.set(entry.size, current)
   })
 
-  return Array.from(groupedEntries.entries())
-    .map(([size, measurements]) => `${size}: ${measurements.join(' | ')}`)
+  return sizeOrder
+    .flatMap((size) => {
+      const { superior, inferior } = sectionMap.get(size) ?? { superior: [], inferior: [] }
+      const lines: string[] = []
+      if (superior.length > 0) lines.push(`${size} (Superior): ${superior.join(' | ')}`)
+      if (inferior.length > 0) lines.push(`${size} (Inferior): ${inferior.join(' | ')}`)
+      return lines
+    })
     .join('\n')
 }
 

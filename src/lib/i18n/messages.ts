@@ -238,7 +238,9 @@ export const messages = {
       "zoom": "Ampliar",
       "collapseVariants": "Recolher variacoes",
       "showVariants": "Ver variacoes",
-      "previewSubtitle": "{sku} | {store}"
+      "previewSubtitle": "{sku} | {store}",
+      "pendingActivation": "Solicitacao Pendente — Ativacao",
+      "pendingDeactivation": "Solicitacao Pendente — Inativacao"
     },
     "variants": {
       "inactive": "Inativa",
@@ -528,7 +530,9 @@ export const messages = {
       "zoom": "Zoom",
       "collapseVariants": "Collapse variants",
       "showVariants": "View variants",
-      "previewSubtitle": "{sku} | {store}"
+      "previewSubtitle": "{sku} | {store}",
+      "pendingActivation": "Pending Request — Activation",
+      "pendingDeactivation": "Pending Request — Deactivation"
     },
     "variants": {
       "inactive": "Inactive",
@@ -818,7 +822,9 @@ export const messages = {
       "zoom": "Ampliar",
       "collapseVariants": "Ocultar variaciones",
       "showVariants": "Ver variaciones",
-      "previewSubtitle": "{sku} | {store}"
+      "previewSubtitle": "{sku} | {store}",
+      "pendingActivation": "Solicitud Pendiente — Activación",
+      "pendingDeactivation": "Solicitud Pendiente — Inactivación"
     },
     "variants": {
       "inactive": "Inactiva",
@@ -1108,7 +1114,9 @@ export const messages = {
       "zoom": "放大",
       "collapseVariants": "收起款式",
       "showVariants": "查看款式",
-      "previewSubtitle": "{sku} | {store}"
+      "previewSubtitle": "{sku} | {store}",
+      "pendingActivation": "待处理请求 — 激活",
+      "pendingDeactivation": "待处理请求 — 停用"
     },
     "variants": {
       "inactive": "停用",
@@ -1398,7 +1406,9 @@ export const messages = {
       "zoom": "تكبير",
       "collapseVariants": "إخفاء المتغيرات",
       "showVariants": "عرض المتغيرات",
-      "previewSubtitle": "{sku} | {store}"
+      "previewSubtitle": "{sku} | {store}",
+      "pendingActivation": "طلب معلق — تفعيل",
+      "pendingDeactivation": "طلب معلق — تعطيل"
     },
     "variants": {
       "inactive": "غير نشط",

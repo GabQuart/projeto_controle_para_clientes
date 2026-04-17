@@ -314,15 +314,19 @@ function buildActionDetail(input: {
   return `Inativacao solicitada para ${input.variacoesSelecionadas.length} variacao(oes) do produto ${input.titulo}.`
 }
 
-async function syncSupabaseStatuses(skuBase: string, variants: CatalogVariant[], nextActive: boolean) {
+export async function applyOperationalStatusChange(
+  skuBase: string,
+  variantSkus: string[],
+  nextActive: boolean,
+): Promise<void> {
   const supabase = createAdminClient()
   const nextVariantStatus = nextActive ? 'SIM' : 'NAO'
 
-  if (variants.length > 0) {
+  if (variantSkus.length > 0) {
     const { error: variantError } = await supabase
       .from(VARIANT_TABLE)
       .update({ status: nextVariantStatus })
-      .in('sku', variants.map((variant) => variant.sku))
+      .in('sku', variantSkus)
 
     if (variantError) {
       throw new Error(`Falha ao atualizar variacoes no Supabase: ${variantError.message}`)
@@ -347,7 +351,7 @@ async function syncSupabaseStatuses(skuBase: string, variants: CatalogVariant[],
     throw new Error(`Falha ao atualizar produto no Supabase: ${productError.message}`)
   }
 
-  await updateCatalogVariantStatuses(Object.fromEntries(variants.map((variant) => [variant.sku, nextActive])))
+  await updateCatalogVariantStatuses(Object.fromEntries(variantSkus.map((sku) => [sku, nextActive])))
 }
 
 async function createRequestInternal(
@@ -423,14 +427,6 @@ async function createRequestInternal(
     tipoSolicitacao: 'operacional',
   }
 
-  if (tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao') {
-    await syncSupabaseStatuses(snapshot.product.skuBase, eligibleVariants, true)
-  }
-
-  if (tipoAlteracao === 'inativar_produto' || tipoAlteracao === 'inativar_variacao') {
-    await syncSupabaseStatuses(snapshot.product.skuBase, eligibleVariants, false)
-  }
-
   const sheetName = await ensureRequestSheetHeaders()
   await appendSheetRow(OUTPUT_SHEET_ID, sheetName, buildRequestRow(request))
 
@@ -451,6 +447,7 @@ async function createRequestInternal(
           variacoes: request.variacoesSelecionadas ?? [],
           estoqueGeral: request.estoqueGeral,
           detalhe: request.detalhe,
+          dataPedido: new Date(request.dataAbertura),
         })),
         trelloBoardId ? findTrelloLabelId(trelloBoardId, labelName) : Promise.resolve(''),
       ])

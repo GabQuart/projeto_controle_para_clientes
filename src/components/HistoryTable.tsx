@@ -44,55 +44,82 @@ export function HistoryTable({ requests }: HistoryTableProps) {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid gap-3 sm:gap-4">
       {requests.map((request) => (
-        <article key={request.id} className="panel rounded-[28px] p-4 sm:p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex flex-col gap-4 sm:flex-row">
-              <div className="brand-glow relative h-20 w-full overflow-hidden rounded-2xl border border-white/10 bg-mist sm:w-20">
-                <Image
-                  src={getHistoryImageSrc(request.fotoRef)}
-                  alt={request.titulo}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 640px) 100vw, 80px"
-                />
-              </div>
-              <div className="min-w-0 space-y-2">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber">{request.loja}</p>
-                  <h3 className="font-display text-xl font-semibold tracking-[0.04em] text-ink">{request.titulo}</h3>
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs text-steel sm:text-sm">
-                  <span className="brand-chip rounded-full px-3 py-1">
-                    {request.tipoSolicitacao === 'novo_produto' ? t('historyTable.newProduct') : t('historyTable.operational')}
-                  </span>
-                  {request.skuBase ? <span className="brand-chip rounded-full px-3 py-1">{t('historyTable.catalogSku', { sku: request.skuBase })}</span> : null}
-                  {request.skuVariacao ? (
-                    <span className="brand-chip rounded-full px-3 py-1">{t('historyTable.sku', { sku: request.skuVariacao })}</span>
-                  ) : null}
-                  {request.imageCount ? (
-                    <span className="brand-chip rounded-full px-3 py-1">{t('historyTable.images', { count: request.imageCount })}</span>
-                  ) : null}
-                </div>
-                <p className="text-sm uppercase tracking-[0.18em] text-steel">{request.requestLabel}</p>
-                <p className="text-sm text-ink/80">
-                  {request.tipoSolicitacao === 'novo_produto' ? translateProductRequestDetail(request.detalhe, locale) : request.detalhe}
+        <article key={request.id} className="panel rounded-[28px] p-3.5 sm:p-5">
+          {/* Layout: imagem quadrada sempre ao lado do conteúdo */}
+          <div className="flex gap-3 sm:gap-4">
+            {/* Imagem — quadrada em todos os tamanhos */}
+            <div className="brand-glow relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-mist sm:h-20 sm:w-20">
+              <Image
+                src={getHistoryImageSrc(request.fotoRef)}
+                alt={request.titulo}
+                fill
+                className="object-cover"
+                sizes="80px"
+              />
+            </div>
+
+            {/* Conteúdo */}
+            <div className="min-w-0 flex-1">
+              {/* Linha 1: loja + status (badge no topo direito) */}
+              <div className="flex items-start justify-between gap-2">
+                <p className="truncate text-[11px] font-semibold uppercase tracking-[0.22em] text-amber sm:text-xs">
+                  {request.loja}
                 </p>
+                <StatusBadge status={request.status} />
+              </div>
+
+              {/* Linha 2: título */}
+              <h3 className="mt-0.5 font-display text-base font-semibold leading-snug tracking-[0.03em] text-ink sm:text-xl">
+                {request.titulo}
+              </h3>
+
+              {/* Linha 3: chips */}
+              <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] text-steel sm:gap-2 sm:text-xs">
+                <span className="brand-chip rounded-full px-2.5 py-1">
+                  {request.tipoSolicitacao === 'novo_produto' ? t('historyTable.newProduct') : t('historyTable.operational')}
+                </span>
+                {request.skuBase ? (
+                  <span className="brand-chip rounded-full px-2.5 py-1">{t('historyTable.catalogSku', { sku: request.skuBase })}</span>
+                ) : null}
+                {request.skuVariacao ? (
+                  <span className="brand-chip rounded-full px-2.5 py-1">{t('historyTable.sku', { sku: request.skuVariacao })}</span>
+                ) : null}
+                {request.imageCount ? (
+                  <span className="brand-chip rounded-full px-2.5 py-1">{t('historyTable.images', { count: request.imageCount })}</span>
+                ) : null}
+              </div>
+
+              {/* Linha 4: label da solicitação */}
+              <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-steel sm:text-xs">
+                {request.requestLabel}
+              </p>
+
+              {/* Linha 5: detalhe (limitado a 2 linhas no mobile) */}
+              <p className="mt-1 line-clamp-2 text-sm text-ink/80 sm:line-clamp-none">
+                {request.tipoSolicitacao === 'novo_produto'
+                  ? translateProductRequestDetail(request.detalhe, locale)
+                  : request.detalhe}
+              </p>
+
+              {/* Linha 6: link da pasta + data */}
+              <div className="mt-2 flex items-center justify-between gap-3">
                 {request.folderUrl ? (
                   <Link
                     href={request.folderUrl}
                     target="_blank"
-                    className="inline-flex text-xs font-semibold uppercase tracking-[0.18em] text-amber underline-offset-4 hover:underline"
+                    className="inline-flex text-[11px] font-semibold uppercase tracking-[0.18em] text-amber underline-offset-4 hover:underline sm:text-xs"
                   >
                     {t('historyTable.openFolder')}
                   </Link>
-                ) : null}
+                ) : (
+                  <span />
+                )}
+                <p className="shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-steel sm:text-xs">
+                  {formatDateTime(request.dataAbertura)}
+                </p>
               </div>
-            </div>
-            <div className="flex flex-col items-start gap-3 border-t border-white/10 pt-3 sm:border-t-0 sm:pt-0 lg:items-end">
-              <StatusBadge status={request.status} />
-              <p className="text-xs font-medium uppercase tracking-[0.14em] text-steel">{formatDateTime(request.dataAbertura)}</p>
             </div>
           </div>
         </article>

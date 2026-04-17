@@ -9,16 +9,23 @@ import { ImagePreviewModal } from '@/components/ImagePreviewModal'
 import { useTranslations } from '@/components/providers/LocaleProvider'
 import { VariantList } from '@/components/VariantList'
 
+export type PendingStatus = 'ativacao' | 'inativacao' | 'ambos'
+
 type ProductRowProps = {
   product: CatalogProduct
   expanded: boolean
   onToggle: () => void
   onAction: (input: { product: CatalogProduct; variant?: CatalogVariant; requestedAction: RequestedCatalogAction; quantity?: number }) => void
+  pendingStatus?: PendingStatus
 }
 
-function getProductPanelClassName(product: CatalogProduct) {
+function getProductPanelClassName(product: CatalogProduct, pendingStatus?: PendingStatus) {
   if (product.status === 'inativo') {
     return 'panel rounded-[28px] border-white/15 bg-[linear-gradient(180deg,rgba(38,45,58,0.92),rgba(16,21,29,0.98))] p-4 opacity-90 sm:p-5'
+  }
+
+  if (pendingStatus) {
+    return 'panel rounded-[28px] border-[#ffd54a]/60 shadow-[0_0_22px_rgba(255,213,74,0.12)] p-4 sm:p-5'
   }
 
   if ((product.inactiveVariantCount ?? 0) > 0) {
@@ -40,7 +47,7 @@ function getProductStatusLabel(product: CatalogProduct) {
   return { key: 'productRow.productActive', className: 'border-pine/35 bg-pine/10 text-pine' }
 }
 
-export function ProductRow({ product, expanded, onToggle, onAction }: ProductRowProps) {
+export function ProductRow({ product, expanded, onToggle, onAction, pendingStatus }: ProductRowProps) {
   const t = useTranslations()
   const [previewOpen, setPreviewOpen] = useState(false)
   const imageSrc = product.fotoRef || '/placeholder-product.svg'
@@ -50,7 +57,7 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
 
   return (
     <>
-      <article className={getProductPanelClassName(product)}>
+      <article className={getProductPanelClassName(product, pendingStatus)}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-4 sm:flex-row">
             <button
@@ -81,6 +88,18 @@ export function ProductRow({ product, expanded, onToggle, onAction }: ProductRow
                 {(product.inactiveVariantCount ?? 0) > 0 ? (
                   <span className="inline-flex rounded-full border border-amber/35 bg-amber/10 px-3 py-1 font-semibold text-amber">
                     {t('productRow.inactiveVariants', { count: product.inactiveVariantCount ?? 0 })}
+                  </span>
+                ) : null}
+                {(pendingStatus === 'ativacao' || pendingStatus === 'ambos') ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ffd54a]/55 bg-[#ffd54a]/12 px-3 py-1 text-[#ffd54a] font-semibold shadow-[0_0_12px_rgba(255,213,74,0.15)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#ffd54a] animate-pulse" />
+                    {t('productRow.pendingActivation')}
+                  </span>
+                ) : null}
+                {(pendingStatus === 'inativacao' || pendingStatus === 'ambos') ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ffd54a]/55 bg-[#ffd54a]/12 px-3 py-1 text-[#ffd54a] font-semibold shadow-[0_0_12px_rgba(255,213,74,0.15)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#ffd54a] animate-pulse" />
+                    {t('productRow.pendingDeactivation')}
                   </span>
                 ) : null}
               </div>

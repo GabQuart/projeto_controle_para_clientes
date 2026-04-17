@@ -27,6 +27,11 @@ const oxanium = Oxanium({
 export const metadata: Metadata = {
   title: 'M3rcadeo | Catalogo Marketplace',
   description: 'Catalogo, operacao e historico da M3rcadeo.',
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+    apple: '/favicon.svg',
+  },
 }
 
 export const viewport: Viewport = {

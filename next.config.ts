@@ -2,6 +2,13 @@
 
 const nextConfig: NextConfig = {
   images: {
+    // Permite qualquer caminho local (assets estáticos, rotas de API,
+    // query strings como ?kind=folder). "search" omitido = qualquer query string permitida.
+    localPatterns: [
+      {
+        pathname: '/**',
+      },
+    ],
     remotePatterns: [
       {
         protocol: 'https',
