@@ -6,6 +6,8 @@ import { cookies } from 'next/headers'
 import { Oxanium, Sora } from 'next/font/google'
 import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { LocaleProvider } from '@/components/providers/LocaleProvider'
+import { ThemeProvider, type AppTheme, THEME_COOKIE } from '@/components/providers/ThemeProvider'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { getAuthenticatedAccount } from '@/lib/services/account.service'
 import { DEFAULT_LOCALE, LOCALE_COOKIE_NAME, getMessages, isSupportedLocale, resolveMessage, type AppLocale } from '@/lib/i18n/messages'
 import './globals.css'
@@ -81,22 +83,25 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const cookieStore = await cookies()
   const rawLocale = cookieStore.get(LOCALE_COOKIE_NAME)?.value ?? DEFAULT_LOCALE
   const locale: AppLocale = isSupportedLocale(rawLocale) ? rawLocale : DEFAULT_LOCALE
+  const rawTheme = cookieStore.get(THEME_COOKIE)?.value
+  const theme: AppTheme = rawTheme === 'light' ? 'light' : 'dark'
   const isRtl = locale === 'ar'
   const t = getMessages(locale)
   const account = await getAuthenticatedAccount().catch(() => null)
   const visibleNavItems = NAV_ITEMS.filter((item) => !item.adminOnly || account?.role === 'admin')
 
   return (
-    <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'}>
+    <html lang={locale} dir={isRtl ? 'rtl' : 'ltr'} data-theme={theme}>
       <body className={`${sora.variable} ${oxanium.variable} font-sans`}>
+        <ThemeProvider initialTheme={theme}>
         <LocaleProvider initialLocale={locale}>
           <div className="grid-shell min-h-screen">
-            <header className="sticky top-0 z-40 border-b border-white/5 bg-slate/80 backdrop-blur-xl">
+            <header className="sticky top-0 z-40 border-b bg-slate/80 backdrop-blur-xl" style={{ borderColor: 'var(--border-subtle)' }}>
               <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div className="flex flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0">
                     <Link href="/catalogo" className="flex min-w-0 items-center gap-4">
-                      <div className="brand-glow flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-cobalt/30 bg-night/70 shadow-[0_0_28px_rgba(72,146,255,0.32)]">
+                      <div className="brand-glow flex h-14 w-14 items-center justify-center overflow-hidden rounded-full" style={{ border: '1px solid var(--logo-border)', background: 'var(--logo-bg)', boxShadow: 'var(--logo-shadow)' }}>
                         <Image
                           src="/branding/m3rcadeo-header-seal.png"
                           alt="Logo M3rcadeo"
@@ -116,7 +121,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
                   </div>
 
                   <div className="flex w-full min-w-0 flex-col gap-2 sm:gap-3 lg:w-auto lg:items-end">
-                    <LanguageSwitcher />
+                    <div className="flex items-center justify-end gap-2">
+                      <LanguageSwitcher />
+                      <ThemeToggle />
+                    </div>
                     <nav className="brand-scrollbar -mx-1 flex w-full max-w-full gap-2 overflow-x-auto px-1 pb-1 text-[11px] font-medium text-steel sm:justify-end sm:text-sm lg:mx-0 lg:w-auto lg:flex-wrap lg:justify-end lg:overflow-visible lg:px-0 lg:pb-0">
                       {visibleNavItems.map((item) => (
                         <Link
@@ -139,6 +147,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             {children}
           </div>
         </LocaleProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
