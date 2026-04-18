@@ -15,6 +15,7 @@ import type { UserAccount } from '@/types/account'
 import type { CatalogPagination, CatalogProduct, CatalogStatusFilter, CatalogVariant } from '@/types/catalog'
 import type { RequestedCatalogAction } from '@/types/request'
 import type { PendingStatus } from '@/components/ProductRow'
+import type { PendingVariantStatus } from '@/components/VariantList'
 
 const PAGE_SIZE = 10
 
@@ -102,7 +103,9 @@ export default function CatalogoPage() {
   const [actionRefreshing, setActionRefreshing] = useState(false)
   const [refreshNonce, setRefreshNonce] = useState(0)
   const [pendingBySkuBase, setPendingBySkuBase] = useState<Record<string, PendingStatus>>({})
+  const [pendingVariantsBySku, setPendingVariantsBySku] = useState<Record<string, PendingVariantStatus>>({})
   const forceRefreshRef = useRef(false)
+  const prevPendingKeysRef = useRef<string[]>([])
 
   useEffect(() => {
     async function loadSession() {
@@ -185,7 +188,6 @@ export default function CatalogoPage() {
       } finally {
         setLoading(false)
         setActionRefreshing(false)
-        forceRefreshRef.current = false
       }
     },
     [account, currentPage, fornecedorFilter, router, search, statusFilter],
@@ -200,16 +202,25 @@ export default function CatalogoPage() {
           cache: 'no-store',
         })
         if (!response.ok) return
-        const payload = await response.json() as { data?: { skuBase?: string; tipoAlteracao?: string }[] }
+        const payload = await response.json() as { data?: { skuBase?: string; tipoAlteracao?: string; variacoesSelecionadas?: string[] }[] }
         const map: Record<string, PendingStatus> = {}
+        const variantMap: Record<string, PendingVariantStatus> = {}
         for (const req of payload.data ?? []) {
           if (!req.skuBase) continue
           const isAtivacao = req.tipoAlteracao === 'ativar_produto' || req.tipoAlteracao === 'ativar_variacao'
           const tipo: PendingStatus = isAtivacao ? 'ativacao' : 'inativacao'
           const existing = map[req.skuBase]
           map[req.skuBase] = !existing ? tipo : existing !== tipo ? 'ambos' : existing
+          // Build per-variant map
+          const variantTipo: PendingVariantStatus = isAtivacao ? 'ativacao' : 'inativacao'
+          for (const sku of req.variacoesSelecionadas ?? []) {
+            if (!variantMap[sku]) {
+              variantMap[sku] = variantTipo
+            }
+          }
         }
         setPendingBySkuBase(map)
+        setPendingVariantsBySku(variantMap)
       } catch {
         // Non-critical — don't surface error
       }
@@ -223,8 +234,14 @@ export default function CatalogoPage() {
     }
 
     const controller = new AbortController()
+    // Captura e reseta o ref SINCRONAMENTE antes de qualquer operação assíncrona.
+    // Isso evita race condition: o finally de um fetch abortado poderia zerar o ref
+    // antes do setTimeout de 250ms conseguir lê-lo.
+    const shouldForceRefresh = forceRefreshRef.current
+    forceRefreshRef.current = false
+
     const timeout = window.setTimeout(() => {
-      loadCatalog({ signal: controller.signal, forceRefresh: forceRefreshRef.current })
+      loadCatalog({ signal: controller.signal, forceRefresh: shouldForceRefresh })
       loadPendingRequests(controller.signal)
     }, 250)
 
@@ -233,6 +250,32 @@ export default function CatalogoPage() {
       window.clearTimeout(timeout)
     }
   }, [account, loadCatalog, loadPendingRequests, refreshNonce])
+
+  // Polling: quando há pendentes, re-verifica a cada 12s para detectar conclusão via webhook
+  useEffect(() => {
+    const hasPending = Object.keys(pendingBySkuBase).length > 0
+    if (!hasPending || !account) return
+
+    const interval = window.setInterval(() => {
+      loadPendingRequests()
+    }, 12_000)
+
+    return () => window.clearInterval(interval)
+  }, [account, pendingBySkuBase, loadPendingRequests])
+
+  // Quando um item pendente some (webhook concluiu), força reload do catálogo
+  useEffect(() => {
+    const currentKeys = Object.keys(pendingBySkuBase)
+    const prev = prevPendingKeysRef.current
+
+    const someConcluded = prev.length > 0 && prev.some((k) => !pendingBySkuBase[k])
+    if (someConcluded) {
+      forceRefreshRef.current = true
+      setRefreshNonce((n) => n + 1)
+    }
+
+    prevPendingKeysRef.current = currentKeys
+  }, [pendingBySkuBase])
 
   const summary = useMemo(() => {
     const variants = products.reduce((total, product) => total + product.variacoes.length, 0)
@@ -309,31 +352,11 @@ export default function CatalogoPage() {
     setSelectedItem(input)
   }
 
-  function handleActionCreated(result: CompletedCatalogAction) {
-    setProducts((currentProducts) =>
-      currentProducts.map((product) => {
-        if (product.skuBase !== result.skuBase) {
-          return product
-        }
-
-        return deriveProductStatus({
-          ...product,
-          variacoes: product.variacoes.map((variant) =>
-            result.updatedVariantSkus.includes(variant.sku)
-              ? {
-                  ...variant,
-                  ativo: result.nextActive,
-                  status: result.nextActive ? 'ativo' : 'inativo',
-                }
-              : variant,
-          ),
-        })
-      }),
-    )
+  function handleActionCreated(_result: CompletedCatalogAction) {
+    // Não atualiza o catálogo otimisticamente — o status só muda quando o Trello confirmar via webhook.
+    // Apenas recarrega as solicitações pendentes para exibir os indicadores amarelos nas variações.
     setQueuedCount((current) => current + 1)
     setSelectedItem(null)
-    forceRefreshRef.current = true
-    setActionRefreshing(true)
     setRefreshNonce((current) => current + 1)
   }
 
@@ -454,7 +477,7 @@ export default function CatalogoPage() {
         {loading ? (
           <div className="panel rounded-3xl p-6 text-sm text-steel">{t('catalog.loading')}</div>
         ) : (
-          <ProductTable products={products} expandedIds={expandedIds} onToggle={toggleExpanded} onAction={handleOpenAction} pendingBySkuBase={pendingBySkuBase} />
+          <ProductTable products={products} expandedIds={expandedIds} onToggle={toggleExpanded} onAction={handleOpenAction} pendingBySkuBase={pendingBySkuBase} pendingVariantsBySku={pendingVariantsBySku} />
         )}
 
         {!loading ? (

@@ -465,10 +465,6 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
         throw new Error(t('productRequest.validation.cost'))
       }
 
-      if (selectedSizes.length === 0) {
-        throw new Error(t('productRequest.validation.sizes'))
-      }
-
       if (selectedImages.length === 0) {
         throw new Error(t('productRequest.validation.images'))
       }
@@ -565,51 +561,66 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
         </div>
 
         <div className="brand-scrollbar flex-1 space-y-5 overflow-y-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:space-y-6 sm:px-6">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-              {t('productRequest.store')}
-              <select
-                value={store}
-                onChange={(event) => setStore(event.target.value)}
-                className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-                disabled={loadingOptions || account.role !== 'admin'}
-              >
-                {options.stores.map((option) => (
-                  <option key={option} value={option} className="bg-slate text-ink">
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-              {t('productRequest.productTitle')} <span className="text-clay">*</span>
-              <input
-                required
-                value={productName}
-                onChange={(event) => setProductName(event.target.value)}
-                className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-                placeholder={t('productRequest.productTitlePlaceholder')}
-              />
-            </label>
+
+          {/* ── Instrução geral ───────────────────────────────────────────── */}
+          <div className="rounded-2xl border border-amber/20 bg-amber/5 px-4 py-3">
+            <p className="text-sm text-steel">{t('productRequest.intro')}</p>
           </div>
 
-          <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-            {t('productRequest.productCost')} <span className="text-clay">*</span>
-            <input
-              required
-              type="number"
-              min="0"
-              step="0.01"
-              value={productCost}
-              onChange={(event) => setProductCost(event.target.value)}
-              className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
-              placeholder="0,00"
-            />
-          </label>
+          {/* ── Informações básicas ───────────────────────────────────────── */}
+          <section className="space-y-4 rounded-3xl border border-white/10 p-3.5 sm:p-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.basicInfo')}</p>
+              <p className="mt-1 text-sm text-steel">{t('productRequest.basicInfoHint')}</p>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
+                {t('productRequest.store')}
+                <select
+                  value={store}
+                  onChange={(event) => setStore(event.target.value)}
+                  className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+                  disabled={loadingOptions || account.role !== 'admin'}
+                >
+                  {options.stores.map((option) => (
+                    <option key={option} value={option} className="bg-slate text-ink">
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
+                <span>{t('productRequest.productTitle')} <span className="text-clay">*</span></span>
+                <input
+                  required
+                  value={productName}
+                  onChange={(event) => setProductName(event.target.value)}
+                  className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+                  placeholder={t('productRequest.productTitlePlaceholder')}
+                />
+              </label>
+            </div>
+            <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
+              <span>{t('productRequest.productCost')} <span className="text-clay">*</span></span>
+              <input
+                required
+                type="number"
+                min="0"
+                step="0.01"
+                value={productCost}
+                onChange={(event) => setProductCost(event.target.value)}
+                className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+                placeholder="0,00"
+              />
+            </label>
+          </section>
 
           {/* ── Tamanhos ─────────────────────────────────────────────────── */}
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.sizes')} <span className="text-clay">*</span></p>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.sizes')}</p>
+              <p className="mt-1 text-sm text-steel">{t('productRequest.sizesHint')}</p>
+            </div>
             <div className="grid gap-4">
               {options.sizeGroups.map((group) => (
                 <div key={group.id} className="space-y-3">
@@ -786,9 +797,12 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
 
           {/* ── Variações ─────────────────────────────────────────────────── */}
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.variationType')}</p>
+              <p className="mt-1 text-sm text-steel">{t('productRequest.variationsHint')}</p>
+            </div>
             <div className="rounded-3xl border border-cobalt/25 bg-cobalt/10 p-3 sm:p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-steel">{t('productRequest.variationType')}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setVariationType('cores')}
@@ -866,7 +880,10 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
 
           {/* ── Imagens ───────────────────────────────────────────────────── */}
           <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.images')} <span className="text-clay">*</span></p>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.images')} <span className="text-clay">*</span></p>
+              <p className="mt-1 text-sm text-steel">{t('productRequest.imagesHint')}</p>
+            </div>
             <p className="text-sm text-steel">
               {isMobile ? t('productRequest.imagesRequired') : t('productRequest.imagesDesktop')}
             </p>
@@ -930,16 +947,19 @@ export function NewProductRequestModal({ open, account, onClose, onCreated, onSu
           </section>
 
           {/* ── Material / Observações ────────────────────────────────────── */}
-          <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-steel">
-            {t('productRequest.material')}
+          <section className="space-y-3 rounded-3xl border border-white/10 p-3.5 sm:p-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.14em] text-ink">{t('productRequest.material')}</p>
+              <p className="mt-1 text-sm text-steel">{t('productRequest.materialHint')}</p>
+            </div>
             <textarea
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={3}
-              className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+              className="brand-chip w-full rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
               placeholder={t('productRequest.materialPlaceholder')}
             />
-          </label>
+          </section>
 
           {feedback ? (
             <div

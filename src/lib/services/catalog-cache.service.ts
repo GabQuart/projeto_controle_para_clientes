@@ -132,6 +132,11 @@ export async function getCatalogCache(
     }
   }
 
+  // forceRefresh: descarta qualquer refresh em andamento para garantir dados frescos do DB
+  if (options.forceRefresh) {
+    pendingRefresh = null
+  }
+
   // Sem cache nenhum — carrega bloqueando (só na primeira vez)
   if (pendingRefresh) {
     const payload = await pendingRefresh

@@ -1,4 +1,3 @@
-import { appendSheetRow, getSpreadsheetSheetTitles, readSheetTab, updateSheetRow, updateRowsByLookup } from '@/lib/google/sheets'
 import { validateActiveAccount } from '@/lib/services/account.service'
 import {
   isTrelloConfigured,
@@ -24,33 +23,11 @@ import type {
 import type { CatalogVariant } from '@/types/catalog'
 import type { UserAccount } from '@/types/account'
 
-const OUTPUT_SHEET_ID = process.env.GOOGLE_OUTPUT_SHEET_ID ?? ''
+// ─── Constantes ───────────────────────────────────────────────────────────────
+
 const PRODUCT_TABLE = 'catalogo_produtos'
 const VARIANT_TABLE = 'variacoes_sku'
-const REQUEST_HEADERS = [
-  'id',
-  'loteId',
-  'dataAbertura',
-  'operadorEmail',
-  'operadorNome',
-  'clienteCod',
-  'loja',
-  'skuBase',
-  'skuVariacao',
-  'titulo',
-  'fotoRef',
-  'tipoAlteracao',
-  'detalhe',
-  'status',
-  'responsavelInterno',
-  'dataConclusao',
-  'variacoesSelecionadas',
-  'estoqueGeral',
-  'estoquePorVariacao',
-  'enviadoTrello',
-  'trelloCardId',
-  'tipo_solicitacao',
-] as const
+const OP_TABLE = 'solicitacoes_operacionais'
 
 const VALID_REQUEST_TYPES = new Set<ChangeRequest['tipoAlteracao']>([
   'ativar_produto',
@@ -67,43 +44,7 @@ const VALID_REQUEST_STATUSES = new Set<ChangeRequest['status']>([
   'cancelado',
 ])
 
-let cachedOutputSheetName = ''
-
-async function getOutputSheetName() {
-  if (cachedOutputSheetName) {
-    return cachedOutputSheetName
-  }
-
-  const envSheetName = process.env.GOOGLE_OUTPUT_SHEET_NAME
-  if (envSheetName) {
-    cachedOutputSheetName = envSheetName
-    return cachedOutputSheetName
-  }
-
-  const titles = await getSpreadsheetSheetTitles(OUTPUT_SHEET_ID)
-  cachedOutputSheetName = titles[0] ?? 'Pagina1'
-  return cachedOutputSheetName
-}
-
-function toColumnLetter(columnNumber: number) {
-  let current = columnNumber
-  let result = ''
-
-  while (current > 0) {
-    const modulo = (current - 1) % 26
-    result = String.fromCharCode(65 + modulo) + result
-    current = Math.floor((current - modulo) / 26)
-  }
-
-  return result
-}
-
-async function ensureRequestSheetHeaders() {
-  const sheetName = await getOutputSheetName()
-  const lastColumn = toColumnLetter(REQUEST_HEADERS.length)
-  await updateSheetRow(OUTPUT_SHEET_ID, `${sheetName}!A1:${lastColumn}1`, [REQUEST_HEADERS as unknown as string[]])
-  return sheetName
-}
+// ─── Utilitários ──────────────────────────────────────────────────────────────
 
 function validateRequestPayload(payload: Partial<ChangeRequest>) {
   const requiredFields = ['operadorEmail', 'skuBase', 'tipoAlteracao'] as const
@@ -128,45 +69,12 @@ function parseOptionalNumber(value: unknown) {
   return parsed
 }
 
-function serializeJson(value: unknown) {
-  if (value === null || value === undefined) {
-    return ''
-  }
-
-  if (Array.isArray(value) && value.length === 0) {
-    return ''
-  }
-
-  return JSON.stringify(value)
-}
-
-function parseJsonArray<T>(value?: string) {
-  if (!value) {
-    return undefined
-  }
-
-  try {
-    const parsed = JSON.parse(value) as unknown
-    return Array.isArray(parsed) ? (parsed as T[]) : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function sanitizeImageReference(value?: string) {
+function sanitizeImageReference(value?: string | null) {
   const normalized = compactText(value ?? '')
 
-  if (!normalized) {
-    return ''
-  }
-
-  if (normalized.startsWith('/')) {
-    return normalized
-  }
-
-  if (/^https?:\/\//i.test(normalized)) {
-    return normalized
-  }
+  if (!normalized) return ''
+  if (normalized.startsWith('/')) return normalized
+  if (/^https?:\/\//i.test(normalized)) return normalized
 
   return ''
 }
@@ -180,77 +88,41 @@ function isValidRequestStatus(value?: string): value is ChangeRequest['status'] 
 }
 
 function formatRequestLabel(tipoAlteracao: ChangeRequest['tipoAlteracao']) {
-  if (tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao') {
-    return 'Ativacao'
-  }
-
-  if (tipoAlteracao === 'inativar_produto' || tipoAlteracao === 'inativar_variacao') {
-    return 'Inativacao'
-  }
-
+  if (tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao') return 'Ativacao'
+  if (tipoAlteracao === 'inativar_produto' || tipoAlteracao === 'inativar_variacao') return 'Inativacao'
   return tipoAlteracao.replaceAll('_', ' ')
 }
 
-function buildRequestRow(request: ChangeRequest) {
-  return REQUEST_HEADERS.map((header) => {
-    switch (header) {
-      case 'variacoesSelecionadas':
-        return serializeJson(request.variacoesSelecionadas)
-      case 'estoquePorVariacao':
-        return serializeJson(request.estoquePorVariacao)
-      case 'estoqueGeral':
-        return request.estoqueGeral === undefined ? '' : String(request.estoqueGeral)
-      case 'enviadoTrello':
-        return ''
-      case 'trelloCardId':
-        return ''
-      case 'tipo_solicitacao':
-        return request.tipoSolicitacao ?? 'operacional'
-      default:
-        return String(request[header as keyof ChangeRequest] ?? '')
-    }
-  })
-}
-
 function matchesFilters(request: RequestHistoryEntry, filters: ChangeRequestFilters) {
-  if (filters.status && request.status !== filters.status) {
-    return false
-  }
-
-  if (filters.tipoSolicitacao && request.tipoSolicitacao !== filters.tipoSolicitacao) {
-    return false
-  }
-
-  if (filters.loja && normalizeText(request.loja) !== normalizeText(filters.loja)) {
-    return false
-  }
-
-  if (filters.nome && !normalizeText(request.titulo).includes(normalizeText(filters.nome))) {
-    return false
-  }
+  if (filters.status && request.status !== filters.status) return false
+  if (filters.tipoSolicitacao && request.tipoSolicitacao !== filters.tipoSolicitacao) return false
+  if (filters.loja && normalizeText(request.loja) !== normalizeText(filters.loja)) return false
+  if (filters.nome && !normalizeText(request.titulo).includes(normalizeText(filters.nome))) return false
 
   if (filters.sku) {
     const normalized = normalizeSku(filters.sku)
-    const target = [request.skuBase, request.skuVariacao, ...(request.variacoesSelecionadas ?? []), request.id].map((item) => normalizeSku(item))
+    const targets = [
+      request.skuBase,
+      request.skuVariacao,
+      ...(request.variacoesSelecionadas ?? []),
+      request.id,
+    ].map((item) => normalizeSku(item))
 
-    if (!target.some((item) => item.includes(normalized))) {
-      return false
-    }
+    if (!targets.some((item) => item.includes(normalized))) return false
   }
 
   return true
 }
 
-function resolveSelectedVariants(variants: CatalogVariant[], payload: Partial<ChangeRequest>, fallbackVariant?: CatalogVariant) {
-  if (fallbackVariant) {
-    return [fallbackVariant]
-  }
+function resolveSelectedVariants(
+  variants: CatalogVariant[],
+  payload: Partial<ChangeRequest>,
+  fallbackVariant?: CatalogVariant,
+) {
+  if (fallbackVariant) return [fallbackVariant]
 
   const requestedSkus = (payload.variacoesSelecionadas ?? []).map((sku) => normalizeSku(sku))
-
-  if (requestedSkus.length === 0) {
-    return []
-  }
+  if (requestedSkus.length === 0) return []
 
   const requestedSet = new Set(requestedSkus)
   return variants.filter((variant) => requestedSet.has(normalizeSku(variant.sku)))
@@ -271,20 +143,22 @@ function getEligibleVariants(variants: CatalogVariant[], tipoAlteracao: ChangeRe
 
 function getAlreadyInExpectedStateMessage(tipoAlteracao: ChangeRequest['tipoAlteracao'], isVariantAction: boolean) {
   if (tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao') {
-    return isVariantAction ? 'A variacao selecionada ja esta ativa.' : 'Nao existem variacoes inativas para ativar neste produto.'
+    return isVariantAction
+      ? 'A variacao selecionada ja esta ativa.'
+      : 'Nao existem variacoes inativas para ativar neste produto.'
   }
 
   if (tipoAlteracao === 'inativar_produto' || tipoAlteracao === 'inativar_variacao') {
-    return isVariantAction ? 'A variacao selecionada ja esta inativa.' : 'Nao existem variacoes ativas para inativar neste produto.'
+    return isVariantAction
+      ? 'A variacao selecionada ja esta inativa.'
+      : 'Nao existem variacoes ativas para inativar neste produto.'
   }
 
   return 'Nenhuma variacao elegivel foi encontrada para esta acao.'
 }
 
 function buildStockByVariant(variants: CatalogVariant[], estoqueGeral?: number): RequestedVariantStock[] | undefined {
-  if (estoqueGeral === undefined) {
-    return undefined
-  }
+  if (estoqueGeral === undefined) return undefined
 
   return variants.map((variant) => ({
     sku: variant.sku,
@@ -302,10 +176,7 @@ function buildActionDetail(input: {
   detalhe?: string
 }) {
   const customDetail = compactText(input.detalhe ?? '')
-
-  if (customDetail) {
-    return customDetail
-  }
+  if (customDetail) return customDetail
 
   if (input.tipoAlteracao === 'ativar_produto' || input.tipoAlteracao === 'ativar_variacao') {
     return `Ativacao solicitada para ${input.variacoesSelecionadas.length} variacao(oes) do produto ${input.titulo} com quantidade ${input.estoqueGeral ?? 0}.`
@@ -313,6 +184,45 @@ function buildActionDetail(input: {
 
   return `Inativacao solicitada para ${input.variacoesSelecionadas.length} variacao(oes) do produto ${input.titulo}.`
 }
+
+// ─── Mapeamento Supabase → RequestHistoryEntry ────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToHistoryEntry(row: Record<string, any>): RequestHistoryEntry | null {
+  const tipoAlteracao = compactText(row.tipo_alteracao ?? '')
+  const status = compactText(row.status ?? '')
+  const tipoSolicitacao = compactText(row.tipo_solicitacao ?? '') as RequestHistoryType
+
+  if (!row.id || !isValidRequestType(tipoAlteracao) || !isValidRequestStatus(status)) {
+    return null
+  }
+
+  return {
+    id: row.id,
+    loteId: row.lote_id ?? '',
+    dataAbertura: row.data_abertura ?? '',
+    operadorEmail: row.operador_email ?? '',
+    operadorNome: row.operador_nome ?? '',
+    clienteCod: row.cliente_cod ?? '',
+    loja: row.loja ?? '',
+    skuBase: row.sku_base ?? '',
+    skuVariacao: row.sku_variacao ?? '',
+    titulo: row.titulo ?? '',
+    fotoRef: sanitizeImageReference(row.foto_ref),
+    tipoAlteracao,
+    detalhe: row.detalhe ?? '',
+    status: status as RequestHistoryEntry['status'],
+    responsavelInterno: row.responsavel_interno ?? '',
+    dataConclusao: row.data_conclusao ?? '',
+    variacoesSelecionadas: Array.isArray(row.variacoes_selecionadas) ? row.variacoes_selecionadas : undefined,
+    estoqueGeral: row.estoque_geral ? Number(row.estoque_geral) : undefined,
+    estoquePorVariacao: Array.isArray(row.estoque_por_variacao) ? row.estoque_por_variacao : undefined,
+    tipoSolicitacao: tipoSolicitacao === 'novo_produto' ? 'novo_produto' : 'operacional',
+    requestLabel: formatRequestLabel(tipoAlteracao),
+  }
+}
+
+// ─── Sync de status no catálogo (Supabase) ────────────────────────────────────
 
 export async function applyOperationalStatusChange(
   skuBase: string,
@@ -345,7 +255,10 @@ export async function applyOperationalStatusChange(
   const hasActiveVariant = (currentVariants ?? []).some((variant) => toBooleanFlag(variant.status))
   const nextProductStatus = hasActiveVariant ? 'ATIVO' : 'INATIVO'
 
-  const { error: productError } = await supabase.from(PRODUCT_TABLE).update({ status: nextProductStatus }).eq('sku_base', skuBase)
+  const { error: productError } = await supabase
+    .from(PRODUCT_TABLE)
+    .update({ status: nextProductStatus })
+    .eq('sku_base', skuBase)
 
   if (productError) {
     throw new Error(`Falha ao atualizar produto no Supabase: ${productError.message}`)
@@ -354,14 +267,12 @@ export async function applyOperationalStatusChange(
   await updateCatalogVariantStatuses(Object.fromEntries(variantSkus.map((sku) => [sku, nextActive])))
 }
 
+// ─── Criar solicitação (interno) ──────────────────────────────────────────────
+
 async function createRequestInternal(
   payload: Partial<ChangeRequest>,
   options: { account?: UserAccount; loteId?: string } = {},
 ) {
-  if (!OUTPUT_SHEET_ID) {
-    throw new Error('GOOGLE_OUTPUT_SHEET_ID nao configurado')
-  }
-
   validateRequestPayload(payload)
 
   const tipoAlteracao = payload.tipoAlteracao as ChangeRequest['tipoAlteracao']
@@ -373,7 +284,12 @@ async function createRequestInternal(
   })
 
   const selectedVariants = resolveSelectedVariants(snapshot.product.variacoes, payload, snapshot.variant)
-  const scopedVariants = snapshot.variant ? [snapshot.variant] : selectedVariants.length > 0 ? selectedVariants : snapshot.product.variacoes
+  const scopedVariants =
+    snapshot.variant
+      ? [snapshot.variant]
+      : selectedVariants.length > 0
+        ? selectedVariants
+        : snapshot.product.variacoes
   const eligibleVariants = getEligibleVariants(scopedVariants, tipoAlteracao)
   const estoqueGeral =
     tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao'
@@ -413,7 +329,9 @@ async function createRequestInternal(
     clienteCod: snapshot.product.clienteCod,
     loja: snapshot.product.loja,
     skuBase: snapshot.product.skuBase,
-    skuVariacao: snapshot.variant?.sku ?? (variacoesSelecionadas.length === 1 ? variacoesSelecionadas[0] : payload.skuVariacao),
+    skuVariacao:
+      snapshot.variant?.sku ??
+      (variacoesSelecionadas.length === 1 ? variacoesSelecionadas[0] : payload.skuVariacao),
     titulo: snapshot.product.titulo,
     fotoRef: snapshot.product.fotoRef,
     tipoAlteracao,
@@ -427,28 +345,58 @@ async function createRequestInternal(
     tipoSolicitacao: 'operacional',
   }
 
-  const sheetName = await ensureRequestSheetHeaders()
-  await appendSheetRow(OUTPUT_SHEET_ID, sheetName, buildRequestRow(request))
+  // Salva no Supabase (status do catálogo só muda quando Trello confirmar via webhook)
+  const supabase = createAdminClient()
+  const { error: dbError } = await supabase.from(OP_TABLE).insert({
+    id: request.id,
+    lote_id: request.loteId ?? null,
+    data_abertura: request.dataAbertura,
+    operador_email: request.operadorEmail,
+    operador_nome: request.operadorNome,
+    cliente_cod: request.clienteCod ?? null,
+    loja: request.loja,
+    sku_base: request.skuBase,
+    sku_variacao: request.skuVariacao ?? null,
+    titulo: request.titulo,
+    foto_ref: request.fotoRef ?? null,
+    tipo_alteracao: request.tipoAlteracao,
+    detalhe: request.detalhe,
+    status: request.status,
+    responsavel_interno: request.responsavelInterno ?? null,
+    data_conclusao: request.dataConclusao ?? null,
+    variacoes_selecionadas: request.variacoesSelecionadas ?? null,
+    estoque_geral: request.estoqueGeral ?? null,
+    estoque_por_variacao: request.estoquePorVariacao ?? null,
+    enviado_trello: false,
+    trello_card_id: null,
+    tipo_solicitacao: request.tipoSolicitacao ?? 'operacional',
+  })
 
-  // ── Cria card no Trello (se configurado) ──────────────────────────────────
+  if (dbError) {
+    throw new Error(`Falha ao registrar solicitacao: ${dbError.message}`)
+  }
+
+  // Cria card no Trello (se configurado) — falha silenciosa
   const trelloListId = process.env.TRELLO_LIST_ATIVACAO_ENTRADA_ID ?? ''
   const trelloBoardId = process.env.TRELLO_BOARD_ATIVACAO_ID ?? ''
 
   if (isTrelloConfigured() && trelloListId) {
     try {
-      const isAtivar = request.tipoAlteracao === 'ativar_produto' || request.tipoAlteracao === 'ativar_variacao'
+      const isAtivar = tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao'
       const labelName = isAtivar ? 'ATIVAR' : 'INATIVAR'
 
       const [cardName, cardDesc, labelId] = await Promise.all([
-        Promise.resolve(buildOperationalCardName(request.tipoAlteracao, request.titulo, request.skuBase)),
-        Promise.resolve(buildOperationalCardDesc({
-          loja: request.loja,
-          operadorNome: request.operadorNome,
-          variacoes: request.variacoesSelecionadas ?? [],
-          estoqueGeral: request.estoqueGeral,
-          detalhe: request.detalhe,
-          dataPedido: new Date(request.dataAbertura),
-        })),
+        Promise.resolve(buildOperationalCardName(tipoAlteracao, request.titulo, request.skuBase)),
+        Promise.resolve(
+          buildOperationalCardDesc({
+            loja: request.loja,
+            operadorNome: request.operadorNome,
+            variacoes: request.variacoesSelecionadas ?? [],
+            estoqueGeral: request.estoqueGeral,
+            detalhe: request.detalhe,
+            dataPedido: new Date(request.dataAbertura),
+          }),
+        ),
         trelloBoardId ? findTrelloLabelId(trelloBoardId, labelName) : Promise.resolve(''),
       ])
 
@@ -460,21 +408,20 @@ async function createRequestInternal(
       })
 
       if (cardId) {
-        await updateRowsByLookup(OUTPUT_SHEET_ID, sheetName, 'id', [
-          {
-            key: request.id,
-            values: { trelloCardId: cardId, enviadoTrello: 'SIM' },
-          },
-        ])
+        await supabase
+          .from(OP_TABLE)
+          .update({ trello_card_id: cardId, enviado_trello: true })
+          .eq('id', request.id)
       }
     } catch (trelloError) {
-      // Não bloqueia a solicitação se o Trello falhar
       console.warn('[request] Falha ao criar card no Trello:', trelloError instanceof Error ? trelloError.message : trelloError)
     }
   }
 
   return request
 }
+
+// ─── Exports públicos ─────────────────────────────────────────────────────────
 
 export async function createRequest(payload: Partial<ChangeRequest>) {
   return createRequestInternal(payload)
@@ -487,7 +434,9 @@ export async function createBatchRequests(payload: BulkCreateRequestInput) {
 
   const account = await validateActiveAccount(payload.operadorEmail)
   const loteId = createSimpleId('lote')
-  const uniqueSkuBases = Array.from(new Set(payload.items.map((item) => normalizeSku(item.skuBase)).filter(Boolean)))
+  const uniqueSkuBases = Array.from(
+    new Set(payload.items.map((item) => normalizeSku(item.skuBase)).filter(Boolean)),
+  )
   const created: ChangeRequest[] = []
   const errors: { skuBase: string; message: string }[] = []
 
@@ -513,61 +462,40 @@ export async function createBatchRequests(payload: BulkCreateRequestInput) {
     }
   }
 
-  return {
-    loteId,
-    created,
-    errors,
-  }
+  return { loteId, created, errors }
 }
 
 export async function listRequests(filters: ChangeRequestFilters = {}) {
-  if (!OUTPUT_SHEET_ID) {
-    throw new Error('GOOGLE_OUTPUT_SHEET_ID nao configurado')
+  const supabase = createAdminClient()
+
+  // ── Solicitações operacionais (Supabase) ──────────────────────────────────
+  let opQuery = supabase
+    .from(OP_TABLE)
+    .select('*')
+    .order('data_abertura', { ascending: false })
+
+  if (filters.status) opQuery = opQuery.eq('status', filters.status)
+  if (filters.loja) opQuery = opQuery.eq('loja', filters.loja)
+  if (filters.nome) opQuery = opQuery.ilike('titulo', `%${filters.nome}%`)
+
+  if (filters.tipoSolicitacao === 'novo_produto') {
+    // Apenas novos produtos — não lê tabela operacional
+    const productRequests = await listProductRequestHistory(filters)
+    return productRequests
   }
 
-  const sheetName = await ensureRequestSheetHeaders()
-  const rows = await readSheetTab(OUTPUT_SHEET_ID, sheetName)
+  const { data: opRows } = await opQuery
 
-  const operationalRequests = rows
-    .map<RequestHistoryEntry | null>((row) => {
-      const tipoAlteracao = compactText(row.tipoAlteracao ?? '')
-      const status = compactText(row.status ?? '')
-      const tipoSolicitacao = compactText(row.tipo_solicitacao ?? '') as RequestHistoryType
+  const operationalRequests = (opRows ?? [])
+    .map((row) => rowToHistoryEntry(row as Record<string, unknown>))
+    .filter((r): r is RequestHistoryEntry => r !== null)
+    .filter((r) => matchesFilters(r, filters))
 
-      if (!row.id || !isValidRequestType(tipoAlteracao) || !isValidRequestStatus(status)) {
-        return null
-      }
+  // ── Solicitações de novo produto (Supabase) ───────────────────────────────
+  const productRequests =
+    filters.tipoSolicitacao === 'operacional' ? [] : await listProductRequestHistory(filters)
 
-      return {
-        id: row.id ?? '',
-        loteId: row.loteId ?? '',
-        dataAbertura: row.dataAbertura ?? '',
-        operadorEmail: row.operadorEmail ?? '',
-        operadorNome: row.operadorNome ?? '',
-        clienteCod: row.clienteCod ?? '',
-        loja: row.loja ?? '',
-        skuBase: row.skuBase ?? '',
-        skuVariacao: row.skuVariacao ?? '',
-        titulo: row.titulo ?? '',
-        fotoRef: sanitizeImageReference(row.fotoRef),
-        tipoAlteracao,
-        detalhe: row.detalhe ?? '',
-        status: status as RequestHistoryEntry['status'],
-        responsavelInterno: row.responsavelInterno ?? '',
-        dataConclusao: row.dataConclusao ?? '',
-        variacoesSelecionadas: parseJsonArray<string>(row.variacoesSelecionadas),
-        estoqueGeral: row.estoqueGeral ? Number(row.estoqueGeral) : undefined,
-        estoquePorVariacao: parseJsonArray<RequestedVariantStock>(row.estoquePorVariacao),
-        tipoSolicitacao: tipoSolicitacao === 'novo_produto' ? 'novo_produto' : 'operacional',
-        requestLabel: formatRequestLabel(tipoAlteracao),
-      }
-    })
-    .filter((request): request is RequestHistoryEntry => Boolean(request?.id))
-    .filter((request) => matchesFilters(request, filters))
-
-  const productRequests = await listProductRequestHistory(filters)
-
-  return [...operationalRequests, ...productRequests]
-    .filter((request) => matchesFilters(request, filters))
-    .sort((a, b) => new Date(b.dataAbertura).getTime() - new Date(a.dataAbertura).getTime())
+  return [...operationalRequests, ...productRequests].sort(
+    (a, b) => new Date(b.dataAbertura).getTime() - new Date(a.dataAbertura).getTime(),
+  )
 }

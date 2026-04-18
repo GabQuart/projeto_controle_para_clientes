@@ -7,7 +7,6 @@ import {
   type TrelloWebhookPayload,
 } from '@/lib/services/trello.service'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { readSheetTab, updateRowsByLookup } from '@/lib/google/sheets'
 import { getOptionalEnv } from '@/lib/env'
 import { applyOperationalStatusChange } from '@/lib/services/request.service'
 
@@ -15,8 +14,6 @@ import { applyOperationalStatusChange } from '@/lib/services/request.service'
 
 const BOARD_NOVOS_PRODUTOS_ID = () => getOptionalEnv('TRELLO_BOARD_NOVOS_PRODUTOS_ID')
 const BOARD_ATIVACAO_ID = () => getOptionalEnv('TRELLO_BOARD_ATIVACAO_ID')
-const OUTPUT_SHEET_ID = () => getOptionalEnv('GOOGLE_OUTPUT_SHEET_ID')
-const OUTPUT_SHEET_NAME = () => getOptionalEnv('GOOGLE_OUTPUT_SHEET_NAME', 'Pagina1')
 
 // ─── Trello exige HEAD/GET para registrar o webhook ──────────────────────────
 
@@ -94,72 +91,65 @@ export async function POST(request: NextRequest) {
 
 async function concludeProductRequest(cardId: string): Promise<boolean> {
   const supabase = createAdminClient()
+  const now = new Date().toISOString()
 
   const { data, error } = await supabase
     .from('solicitacoes_produto')
     .update({
       status: 'concluido',
-      atualizado_em: new Date().toISOString(),
+      data_conclusao: now,
+      atualizado_em: now,
     })
     .eq('trello_card_id', cardId)
     .select('id_solicitacao')
-    .single()
 
-  if (error || !data) {
+  if (error) {
+    console.error('[trello/webhook] Erro ao atualizar solicitacao_produto:', error.message)
     return false
   }
 
-  console.info('[trello/webhook] Novo produto concluido:', data.id_solicitacao)
+  if (!data || data.length === 0) {
+    return false
+  }
+
+  console.info('[trello/webhook] Novo produto concluido:', data[0].id_solicitacao)
   return true
 }
 
-// ─── Concluir solicitação operacional (Google Sheets + Supabase) ─────────────
+// ─── Concluir solicitação operacional (Supabase) ─────────────────────────────
 
 async function concludeOperationalRequest(cardId: string): Promise<boolean> {
-  const sheetId = OUTPUT_SHEET_ID()
-  const sheetName = OUTPUT_SHEET_NAME()
+  const supabase = createAdminClient()
+  const now = new Date().toISOString()
 
-  if (!sheetId) {
+  // Busca o registro pelo cardId para reaplicar o status no catálogo se necessário
+  const { data: row, error: fetchError } = await supabase
+    .from('solicitacoes_operacionais')
+    .select('id, sku_base, tipo_alteracao, variacoes_selecionadas')
+    .eq('trello_card_id', cardId)
+    .maybeSingle()
+
+  if (fetchError || !row) {
     return false
   }
 
   try {
-    const rows = await readSheetTab(sheetId, sheetName)
-    const row = rows.find((r) => r.trelloCardId === cardId)
-
-    if (!row) {
-      return false
-    }
-
-    const tipoAlteracao = row.tipoAlteracao as string
-    const skuBase = row.skuBase as string
-    const variacoesSelecionadas: string[] = (() => {
-      try {
-        const parsed = JSON.parse(row.variacoesSelecionadas as string)
-        return Array.isArray(parsed) ? (parsed as string[]) : []
-      } catch {
-        return []
-      }
-    })()
-
+    const tipoAlteracao = row.tipo_alteracao as string
+    const skuBase = row.sku_base as string
+    const variacoes: string[] = Array.isArray(row.variacoes_selecionadas) ? row.variacoes_selecionadas : []
     const isActivation = tipoAlteracao === 'ativar_produto' || tipoAlteracao === 'ativar_variacao'
     const isDeactivation = tipoAlteracao === 'inativar_produto' || tipoAlteracao === 'inativar_variacao'
 
-    if ((isActivation || isDeactivation) && skuBase && variacoesSelecionadas.length > 0) {
-      await applyOperationalStatusChange(skuBase, variacoesSelecionadas, isActivation)
+    if ((isActivation || isDeactivation) && skuBase && variacoes.length > 0) {
+      await applyOperationalStatusChange(skuBase, variacoes, isActivation)
     }
 
-    await updateRowsByLookup(sheetId, sheetName, 'trelloCardId', [
-      {
-        key: cardId,
-        values: {
-          status: 'concluido',
-          dataConclusao: new Date().toISOString(),
-        },
-      },
-    ])
+    await supabase
+      .from('solicitacoes_operacionais')
+      .update({ status: 'concluido', data_conclusao: now, atualizado_em: now })
+      .eq('trello_card_id', cardId)
 
-    console.info('[trello/webhook] Solicitacao operacional concluida, cardId:', cardId)
+    console.info('[trello/webhook] Solicitacao operacional concluida, id:', row.id)
     return true
   } catch (err) {
     console.error('[trello/webhook] Erro em concludeOperationalRequest:', err instanceof Error ? err.message : err)

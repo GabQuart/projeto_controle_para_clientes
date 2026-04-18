@@ -17,9 +17,16 @@ function getBoardIds() {
   }
 }
 
+// ─── URL da Edge Function (sempre pública, independe do deploy do Next.js) ────
+
+function getEdgeFunctionCallbackUrl() {
+  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? '').replace(/\/$/, '')
+  return `${supabaseUrl}/functions/v1/trello-webhook`
+}
+
 // ─── GET — lista webhooks e status da configuração ────────────────────────────
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   if (!isTrelloConfigured()) {
     return NextResponse.json(
       { error: 'Trello não configurado. Verifique TRELLO_API_KEY e TRELLO_TOKEN.' },
@@ -30,7 +37,7 @@ export async function GET(request: NextRequest) {
   try {
     const webhooks = await listTrelloWebhooks()
     const boards = getBoardIds()
-    const callbackUrl = `${request.nextUrl.origin}/api/trello/webhook`
+    const callbackUrl = getEdgeFunctionCallbackUrl()
 
     const status = {
       configured: true,
@@ -67,7 +74,7 @@ export async function GET(request: NextRequest) {
 
 // ─── POST — registra webhooks para os quadros configurados ────────────────────
 
-export async function POST(request: NextRequest) {
+export async function POST(_request: NextRequest) {
   if (!isTrelloConfigured()) {
     return NextResponse.json(
       { error: 'Trello não configurado. Verifique TRELLO_API_KEY e TRELLO_TOKEN.' },
@@ -76,7 +83,7 @@ export async function POST(request: NextRequest) {
   }
 
   const boards = getBoardIds()
-  const callbackUrl = `${request.nextUrl.origin}/api/trello/webhook`
+  const callbackUrl = getEdgeFunctionCallbackUrl()
 
   const results: {
     board: string

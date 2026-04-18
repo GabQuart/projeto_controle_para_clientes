@@ -611,10 +611,6 @@ export async function getProductRequestOptions(account: UserAccount): Promise<Pr
 }
 
 export async function createProductRequest(input: CreateProductRequestInput) {
-  if (!PRODUCT_REQUESTS_SHEET_ID) {
-    throw new Error('GOOGLE_PRODUCT_REQUESTS_SHEET_ID nao configurado.')
-  }
-
   if (!PRODUCT_REQUESTS_UPLOAD_FOLDER_ID) {
     throw new Error('GOOGLE_PRODUCT_REQUESTS_UPLOAD_FOLDER_ID nao configurado.')
   }
@@ -632,10 +628,6 @@ export async function createProductRequest(input: CreateProductRequestInput) {
 
   if (!productName) {
     throw new Error('Informe o nome do produto.')
-  }
-
-  if (sizes.length === 0) {
-    throw new Error('Selecione ao menos um tamanho.')
   }
 
   const id = createSimpleId('sol_produto')

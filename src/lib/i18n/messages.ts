@@ -187,7 +187,7 @@ export const messages = {
       "productCost": "Custo do produto",
       "sizes": "Tamanhos",
       "sizeTable": "Tabela de medidas",
-      "sizeTableDescription": "Cada tamanho selecionado precisa ter uma medida preenchida.",
+      "sizeTableDescription": "Opcional — preencha as medidas de cada tamanho selecionado, se tiver essa informacao disponivel.",
       "sizeMeasurements": "{count} medidas",
       "sizePlaceholderFirst": "Ex.: Busto 23 cm",
       "sizePlaceholderNext": "Ex.: Comprimento 21 cm",
@@ -221,7 +221,14 @@ export const messages = {
         "cost": "Informe o custo do produto.",
         "sizes": "Selecione ao menos um tamanho.",
         "images": "Adicione pelo menos uma foto do produto."
-      }
+      },
+      "intro": "Preencha os campos abaixo para solicitar o cadastro de um novo produto. Os campos marcados com * sao obrigatorios.",
+      "basicInfo": "Informacoes do produto",
+      "basicInfoHint": "Informe o nome exato do produto e o valor de custo de compra.",
+      "sizesHint": "Marque os tamanhos disponiveis para este produto. Se for tamanho unico ou nao tiver variacao de tamanho, pode deixar em branco.",
+      "variationsHint": "Escolha como as versoes do produto se diferenciam: por Cores (ex.: azul, vermelho), Estampas (ex.: floral, xadrez) ou outros tipos.",
+      "imagesHint": "Adicione fotos do produto — quanto mais fotos, melhor para o cadastro. E necessaria ao menos 1.",
+      "materialHint": "Opcional — descreva o material (ex.: 100% algodao, viscose) ou qualquer detalhe extra que ajude no cadastro."
     },
     "actionSelector": {
       "quantityPlaceholder": "Qtd. ativar",
@@ -240,7 +247,8 @@ export const messages = {
       "showVariants": "Ver variacoes",
       "previewSubtitle": "{sku} | {store}",
       "pendingActivation": "Solicitacao Pendente — Ativacao",
-      "pendingDeactivation": "Solicitacao Pendente — Inativacao"
+      "pendingDeactivation": "Solicitacao Pendente — Inativacao",
+      "pendingVariants": "{count} variacao(oes) pendente(s)"
     },
     "variants": {
       "inactive": "Inativa",
@@ -248,7 +256,9 @@ export const messages = {
       "noColor": "Sem cor",
       "noSize": "Sem tamanho",
       "noDetails": "Sem detalhamento adicional",
-      "noVariants": "Nenhuma variacao cadastrada para este produto."
+      "noVariants": "Nenhuma variacao cadastrada para este produto.",
+      "pendingActivation": "Pendente — Ativacao",
+      "pendingDeactivation": "Pendente — Inativacao"
     },
     "actionModal": {
       "activateTitle": "Confirmar ativacao",
@@ -479,7 +489,7 @@ export const messages = {
       "productCost": "Product cost",
       "sizes": "Sizes",
       "sizeTable": "Size chart",
-      "sizeTableDescription": "Each selected size must have at least one measurement.",
+      "sizeTableDescription": "Optional — fill in measurements for each selected size if you have that information available.",
       "sizeMeasurements": "{count} measurements",
       "sizePlaceholderFirst": "Ex.: Bust 23 cm",
       "sizePlaceholderNext": "Ex.: Length 21 cm",
@@ -513,7 +523,14 @@ export const messages = {
         "cost": "Enter the product cost.",
         "sizes": "Select at least one size.",
         "images": "Add at least one product photo."
-      }
+      },
+      "intro": "Fill in the fields below to request a new product registration. Fields marked with * are required.",
+      "basicInfo": "Product information",
+      "basicInfoHint": "Enter the exact product name and the purchase cost.",
+      "sizesHint": "Select the available sizes for this product. If it is one-size or has no size variation, you can leave this blank.",
+      "variationsHint": "Choose how the product versions differ: by Colors (e.g. blue, red), Prints (e.g. floral) or other types.",
+      "imagesHint": "Add product photos — the more photos the better. At least 1 is required.",
+      "materialHint": "Optional — describe the material (e.g. 100% cotton) or add any extra details that help with registration."
     },
     "actionSelector": {
       "quantityPlaceholder": "Qty. activate",
@@ -532,7 +549,8 @@ export const messages = {
       "showVariants": "View variants",
       "previewSubtitle": "{sku} | {store}",
       "pendingActivation": "Pending Request — Activation",
-      "pendingDeactivation": "Pending Request — Deactivation"
+      "pendingDeactivation": "Pending Request — Deactivation",
+      "pendingVariants": "{count} pending variant(s)"
     },
     "variants": {
       "inactive": "Inactive",
@@ -540,7 +558,9 @@ export const messages = {
       "noColor": "No color",
       "noSize": "No size",
       "noDetails": "No extra details",
-      "noVariants": "No variants registered for this product."
+      "noVariants": "No variants registered for this product.",
+      "pendingActivation": "Pending — Activation",
+      "pendingDeactivation": "Pending — Deactivation"
     },
     "actionModal": {
       "activateTitle": "Confirm activation",
@@ -771,7 +791,7 @@ export const messages = {
       "productCost": "Costo del producto",
       "sizes": "Tamaños",
       "sizeTable": "Tabla de medidas",
-      "sizeTableDescription": "Cada talla seleccionada necesita al menos una medida completa.",
+      "sizeTableDescription": "Opcional — completa las medidas de cada talla si tienes esa informacion disponible.",
       "sizeMeasurements": "{count} medidas",
       "sizePlaceholderFirst": "Ej.: Busto 23 cm",
       "sizePlaceholderNext": "Ej.: Largo 21 cm",
@@ -805,7 +825,14 @@ export const messages = {
         "cost": "Informa el costo del producto.",
         "sizes": "Selecciona al menos una talla.",
         "images": "Agrega al menos una foto del producto."
-      }
+      },
+      "intro": "Completa los campos para solicitar el registro de un nuevo producto. Los campos con * son obligatorios.",
+      "basicInfo": "Informacion del producto",
+      "basicInfoHint": "Ingresa el nombre exacto del producto y el costo de compra.",
+      "sizesHint": "Marca los tamanos disponibles. Si es talla unica o no tiene variacion de tamano, puedes dejarlo en blanco.",
+      "variationsHint": "Elige como se diferencian las versiones del producto: por Colores, Estampados u otros tipos.",
+      "imagesHint": "Agrega fotos del producto — cuantas mas fotos, mejor. Se requiere al menos 1.",
+      "materialHint": "Opcional — describe el material (ej.: 100% algodon) o agrega notas importantes sobre el producto."
     },
     "actionSelector": {
       "quantityPlaceholder": "Cant. activar",
@@ -824,7 +851,8 @@ export const messages = {
       "showVariants": "Ver variaciones",
       "previewSubtitle": "{sku} | {store}",
       "pendingActivation": "Solicitud Pendiente — Activación",
-      "pendingDeactivation": "Solicitud Pendiente — Inactivación"
+      "pendingDeactivation": "Solicitud Pendiente — Inactivación",
+      "pendingVariants": "{count} variación(es) pendiente(s)"
     },
     "variants": {
       "inactive": "Inactiva",
@@ -832,7 +860,9 @@ export const messages = {
       "noColor": "Sin color",
       "noSize": "Sin talla",
       "noDetails": "Sin detalles adicionales",
-      "noVariants": "No hay variaciones registradas para este producto."
+      "noVariants": "No hay variaciones registradas para este producto.",
+      "pendingActivation": "Pendiente — Activación",
+      "pendingDeactivation": "Pendiente — Inactivación"
     },
     "actionModal": {
       "activateTitle": "Confirmar activación",
@@ -1063,7 +1093,7 @@ export const messages = {
       "productCost": "产品成本",
       "sizes": "尺码",
       "sizeTable": "尺码表",
-      "sizeTableDescription": "每个已选尺码都需要至少填写一条测量信息。",
+      "sizeTableDescription": "可选 — 如有相关信息，请填写每个已选尺码的测量数据。",
       "sizeMeasurements": "{count} 条测量",
       "sizePlaceholderFirst": "例如：胸围 23 cm",
       "sizePlaceholderNext": "例如：衣长 21 cm",
@@ -1097,7 +1127,14 @@ export const messages = {
         "cost": "请填写产品成本。",
         "sizes": "请至少选择一个尺码。",
         "images": "请至少添加一张产品图片。"
-      }
+      },
+      "intro": "请填写以下字段以申请新产品注册。带 * 的字段为必填项。",
+      "basicInfo": "产品信息",
+      "basicInfoHint": "输入产品名称（如目录中显示）和采购成本。",
+      "sizesHint": "选择可用尺码。如果是统一码或没有尺码变体，可以留空。",
+      "variationsHint": "选择产品版本的区别方式：颜色（如蓝色、红色）、印花（如花卉）或其他类型。",
+      "imagesHint": "添加产品照片 — 照片越多越好，至少需要 1 张。",
+      "materialHint": "可选 — 填写材料（如100%棉）或有关产品的任何重要说明。"
     },
     "actionSelector": {
       "quantityPlaceholder": "激活数量",
@@ -1116,7 +1153,8 @@ export const messages = {
       "showVariants": "查看款式",
       "previewSubtitle": "{sku} | {store}",
       "pendingActivation": "待处理请求 — 激活",
-      "pendingDeactivation": "待处理请求 — 停用"
+      "pendingDeactivation": "待处理请求 — 停用",
+      "pendingVariants": "{count} 个款式待处理"
     },
     "variants": {
       "inactive": "停用",
@@ -1124,7 +1162,9 @@ export const messages = {
       "noColor": "无颜色",
       "noSize": "无尺码",
       "noDetails": "没有其他明细",
-      "noVariants": "此产品没有已注册的变体。"
+      "noVariants": "此产品没有已注册的变体。",
+      "pendingActivation": "待处理 — 激活",
+      "pendingDeactivation": "待处理 — 停用"
     },
     "actionModal": {
       "activateTitle": "确认激活",
@@ -1355,7 +1395,7 @@ export const messages = {
       "productCost": "تكلفة المنتج",
       "sizes": "المقاسات",
       "sizeTable": "جدول المقاسات",
-      "sizeTableDescription": "كل مقاس تم اختياره يحتاج إلى قياس واحد على الأقل.",
+      "sizeTableDescription": "اختياري — أدخل قياسات كل مقاس محدد إذا كانت المعلومات متاحة لديك.",
       "sizeMeasurements": "{count} قياس",
       "sizePlaceholderFirst": "مثال: الصدر 23 سم",
       "sizePlaceholderNext": "مثال: الطول 21 سم",
@@ -1389,7 +1429,14 @@ export const messages = {
         "cost": "أدخل تكلفة المنتج.",
         "sizes": "اختر مقاسًا واحدًا على الأقل.",
         "images": "أضف صورة واحدة على الأقل للمنتج."
-      }
+      },
+      "intro": "أكمل الحقول أدناه لطلب تسجيل منتج جديد. الحقول التي تحمل * إلزامية.",
+      "basicInfo": "معلومات المنتج",
+      "basicInfoHint": "أدخل الاسم الدقيق للمنتج وتكلفة الشراء.",
+      "sizesHint": "حدد الأحجام المتاحة. إذا كان المنتج بمقاس واحد أو لا توجد فروق في الأحجام، يمكنك تركه فارغاً.",
+      "variationsHint": "اختر كيف تختلف إصدارات المنتج: بالألوان أو النقشات أو أنواع أخرى.",
+      "imagesHint": "أضف صور المنتج — كلما زادت الصور كان أفضل. صورة واحدة على الأقل مطلوبة.",
+      "materialHint": "اختياري — صف الخامة (مثل 100% قطن) أو أضف أي ملاحظات مهمة حول المنتج."
     },
     "actionSelector": {
       "quantityPlaceholder": "كمية التفعيل",
@@ -1408,7 +1455,8 @@ export const messages = {
       "showVariants": "عرض المتغيرات",
       "previewSubtitle": "{sku} | {store}",
       "pendingActivation": "طلب معلق — تفعيل",
-      "pendingDeactivation": "طلب معلق — تعطيل"
+      "pendingDeactivation": "طلب معلق — تعطيل",
+      "pendingVariants": "{count} متغير(ات) معلقة"
     },
     "variants": {
       "inactive": "غير نشط",
@@ -1416,7 +1464,9 @@ export const messages = {
       "noColor": "بدون لون",
       "noSize": "بدون مقاس",
       "noDetails": "لا توجد تفاصيل إضافية",
-      "noVariants": "لا توجد متغيرات مسجلة لهذا المنتج."
+      "noVariants": "لا توجد متغيرات مسجلة لهذا المنتج.",
+      "pendingActivation": "معلق — تفعيل",
+      "pendingDeactivation": "معلق — تعطيل"
     },
     "actionModal": {
       "activateTitle": "تأكيد التفعيل",

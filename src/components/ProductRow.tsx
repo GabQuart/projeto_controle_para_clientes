@@ -7,7 +7,7 @@ import type { RequestedCatalogAction } from '@/types/request'
 import { ActionSelector } from '@/components/ActionSelector'
 import { ImagePreviewModal } from '@/components/ImagePreviewModal'
 import { useTranslations } from '@/components/providers/LocaleProvider'
-import { VariantList } from '@/components/VariantList'
+import { VariantList, type PendingVariantStatus } from '@/components/VariantList'
 
 export type PendingStatus = 'ativacao' | 'inativacao' | 'ambos'
 
@@ -17,6 +17,7 @@ type ProductRowProps = {
   onToggle: () => void
   onAction: (input: { product: CatalogProduct; variant?: CatalogVariant; requestedAction: RequestedCatalogAction; quantity?: number }) => void
   pendingStatus?: PendingStatus
+  pendingVariantSkus?: Record<string, PendingVariantStatus>
 }
 
 function getProductPanelClassName(product: CatalogProduct, pendingStatus?: PendingStatus) {
@@ -47,10 +48,13 @@ function getProductStatusLabel(product: CatalogProduct) {
   return { key: 'productRow.productActive', className: 'border-pine/35 bg-pine/10 text-pine' }
 }
 
-export function ProductRow({ product, expanded, onToggle, onAction, pendingStatus }: ProductRowProps) {
+export function ProductRow({ product, expanded, onToggle, onAction, pendingStatus, pendingVariantSkus }: ProductRowProps) {
   const t = useTranslations()
   const [previewOpen, setPreviewOpen] = useState(false)
   const imageSrc = product.fotoRef || '/placeholder-product.svg'
+  const pendingVariantCount = pendingVariantSkus ? Object.keys(pendingVariantSkus).filter((sku) =>
+    product.variacoes.some((v) => v.sku === sku)
+  ).length : 0
   const initialGallery = Array.from(new Set([...(product.fotoGaleria ?? []), imageSrc].filter(Boolean))).slice(0, 3)
   const statusBadge = getProductStatusLabel(product)
   const isFullyInactive = product.status === 'inativo'
@@ -88,6 +92,12 @@ export function ProductRow({ product, expanded, onToggle, onAction, pendingStatu
                 {(product.inactiveVariantCount ?? 0) > 0 ? (
                   <span className="inline-flex rounded-full border border-amber/35 bg-amber/10 px-3 py-1 font-semibold text-amber">
                     {t('productRow.inactiveVariants', { count: product.inactiveVariantCount ?? 0 })}
+                  </span>
+                ) : null}
+                {pendingVariantCount > 0 ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ffd54a]/55 bg-[#ffd54a]/12 px-3 py-1 font-semibold text-[#ffd54a] shadow-[0_0_12px_rgba(255,213,74,0.15)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#ffd54a] animate-pulse" />
+                    {t('productRow.pendingVariants', { count: pendingVariantCount })}
                   </span>
                 ) : null}
                 {(pendingStatus === 'ativacao' || pendingStatus === 'ambos') ? (
@@ -128,6 +138,7 @@ export function ProductRow({ product, expanded, onToggle, onAction, pendingStatu
             <VariantList
               product={product}
               onAction={({ variant, requestedAction, quantity }) => onAction({ product, variant, requestedAction, quantity })}
+              pendingVariantSkus={pendingVariantSkus}
             />
           </div>
         ) : null}

@@ -31,6 +31,10 @@ function getHistoryImageSrc(value?: string) {
   return '/placeholder-product.svg'
 }
 
+function isDriveUrl(value?: string) {
+  return /drive\.google\.com|lh3\.googleusercontent\.com/i.test(value ?? '')
+}
+
 export function HistoryTable({ requests }: HistoryTableProps) {
   const t = useTranslations()
   const { locale } = useLocale()
@@ -57,6 +61,7 @@ export function HistoryTable({ requests }: HistoryTableProps) {
                 fill
                 className="object-cover"
                 sizes="80px"
+                unoptimized={isDriveUrl(request.fotoRef)}
               />
             </div>
 
