@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { filterCatalogProductsForAccount, getAuthenticatedAccount } from '@/lib/services/account.service'
 import { enrichCatalogProductImages, getCatalogCacheMetadata, listCatalog } from '@/lib/services/catalog.service'
-import type { CatalogStatusFilter } from '@/types/catalog'
+import { compareSkuNaturally } from '@/lib/utils/sku'
+import type { CatalogSortOrder, CatalogStatusFilter } from '@/types/catalog'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
     const loja = searchParams.get('loja') ?? undefined
     const fornecedor = searchParams.get('fornecedor') ?? undefined
     const statusFilter = (searchParams.get('status') as CatalogStatusFilter | null) ?? undefined
+    const sortOrder = (searchParams.get('ordem') as CatalogSortOrder | null) ?? 'padrao'
     const termo = searchParams.get('termo') ?? undefined
     const forceRefresh = parseBoolean(searchParams.get('refresh'))
     const page = parsePositiveInt(searchParams.get('page'), 1)
@@ -61,11 +63,17 @@ export async function GET(request: Request) {
 
       return true
     })
-    const total = filteredData.length
+    const orderedData = sortOrder === 'sku_asc' || sortOrder === 'sku_desc'
+      ? [...filteredData].sort((left, right) => {
+          const compared = compareSkuNaturally(left.skuBase, right.skuBase)
+          return sortOrder === 'sku_asc' ? compared : -compared
+        })
+      : filteredData
+    const total = orderedData.length
     const totalPages = Math.max(1, Math.ceil(total / pageSize))
     const currentPage = Math.min(page, totalPages)
     const startIndex = (currentPage - 1) * pageSize
-    const paginatedData = filteredData.slice(startIndex, startIndex + pageSize)
+    const paginatedData = orderedData.slice(startIndex, startIndex + pageSize)
     const enrichedData = await enrichCatalogProductImages(paginatedData)
 
     return NextResponse.json(

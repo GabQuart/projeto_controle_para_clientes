@@ -12,7 +12,7 @@ import { ProductTable } from '@/components/ProductTable'
 import { useTranslations } from '@/components/providers/LocaleProvider'
 import { SearchBar } from '@/components/SearchBar'
 import type { UserAccount } from '@/types/account'
-import type { CatalogPagination, CatalogProduct, CatalogStatusFilter, CatalogVariant } from '@/types/catalog'
+import type { CatalogPagination, CatalogProduct, CatalogSortOrder, CatalogStatusFilter, CatalogVariant } from '@/types/catalog'
 import type { RequestedCatalogAction } from '@/types/request'
 import type { PendingStatus } from '@/components/ProductRow'
 import type { PendingVariantStatus } from '@/components/VariantList'
@@ -96,6 +96,7 @@ export default function CatalogoPage() {
   const [selectedItem, setSelectedItem] = useState<SelectedCatalogAction | null>(null)
   const [fornecedorFilter, setFornecedorFilter] = useState('todos')
   const [statusFilter, setStatusFilter] = useState<CatalogStatusFilter>('todos')
+  const [sortOrder, setSortOrder] = useState<CatalogSortOrder>('padrao')
   const [queuedCount, setQueuedCount] = useState(0)
   const [alertMessage, setAlertMessage] = useState('')
   const [loggingOut, setLoggingOut] = useState(false)
@@ -145,6 +146,7 @@ export default function CatalogoPage() {
         params.set('page', String(currentPage))
         params.set('pageSize', String(PAGE_SIZE))
         params.set('status', statusFilter)
+        params.set('ordem', sortOrder)
 
         if (search.trim()) {
           params.set('termo', search.trim())
@@ -190,7 +192,7 @@ export default function CatalogoPage() {
         setActionRefreshing(false)
       }
     },
-    [account, currentPage, fornecedorFilter, router, search, statusFilter],
+    [account, currentPage, fornecedorFilter, router, search, sortOrder, statusFilter],
   )
 
   const loadPendingRequests = useCallback(
@@ -423,7 +425,7 @@ export default function CatalogoPage() {
           </div>
         </div>
 
-        <div className={`mt-8 grid gap-4 ${fornecedorOptions.length > 0 ? 'xl:grid-cols-[2fr_1fr_1fr_1fr]' : 'xl:grid-cols-[2fr_1fr_1fr]'}`}>
+        <div className={`mt-8 grid gap-4 ${fornecedorOptions.length > 0 ? 'xl:grid-cols-[2fr_1fr_1fr_1fr_1fr]' : 'xl:grid-cols-[2fr_1fr_1fr_1fr]'}`}>
           <SearchBar value={search} onChange={handleSearchChange} placeholder={t('catalog.searchPlaceholder')} label={t('history.searchLabel')} />
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
             {t('catalog.status')}
@@ -439,6 +441,22 @@ export default function CatalogoPage() {
               <option value="ativos" className="bg-slate text-ink">{t('catalog.statusOptions.active')}</option>
               <option value="inativos" className="bg-slate text-ink">{t('catalog.statusOptions.inactive')}</option>
               <option value="com_inativas" className="bg-slate text-ink">{t('catalog.statusOptions.withInactive')}</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
+            {t('catalog.sort')}
+            <select
+              value={sortOrder}
+              onChange={(event) => {
+                setSortOrder(event.target.value as CatalogSortOrder)
+                setCurrentPage(1)
+                setExpandedIds([])
+              }}
+              className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+            >
+              <option value="padrao" className="bg-slate text-ink">{t('catalog.sortOptions.default')}</option>
+              <option value="sku_asc" className="bg-slate text-ink">{t('catalog.sortOptions.skuAsc')}</option>
+              <option value="sku_desc" className="bg-slate text-ink">{t('catalog.sortOptions.skuDesc')}</option>
             </select>
           </label>
           {fornecedorOptions.length > 0 ? (

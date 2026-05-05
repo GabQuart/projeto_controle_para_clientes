@@ -11,6 +11,8 @@ import { StatusBadge } from '@/components/StatusBadge'
 
 type HistoryTableProps = {
   requests: RequestHistoryEntry[]
+  cancelingId?: string
+  onCancel?: (request: RequestHistoryEntry) => void
 }
 
 function getHistoryImageSrc(value?: string) {
@@ -35,7 +37,11 @@ function isDriveUrl(value?: string) {
   return /drive\.google\.com|lh3\.googleusercontent\.com/i.test(value ?? '')
 }
 
-export function HistoryTable({ requests }: HistoryTableProps) {
+function canCancelRequest(request: RequestHistoryEntry) {
+  return request.status !== 'concluido' && request.status !== 'cancelado'
+}
+
+export function HistoryTable({ requests, cancelingId = '', onCancel }: HistoryTableProps) {
   const t = useTranslations()
   const { locale } = useLocale()
 
@@ -108,19 +114,29 @@ export function HistoryTable({ requests }: HistoryTableProps) {
                   : request.detalhe}
               </p>
 
-              {/* Linha 6: link da pasta + data */}
-              <div className="mt-2 flex items-center justify-between gap-3">
-                {request.folderUrl ? (
-                  <Link
-                    href={request.folderUrl}
-                    target="_blank"
-                    className="inline-flex text-[11px] font-semibold uppercase tracking-[0.18em] text-amber underline-offset-4 hover:underline sm:text-xs"
-                  >
-                    {t('historyTable.openFolder')}
-                  </Link>
-                ) : (
-                  <span />
-                )}
+              {/* Linha 6: acoes + data */}
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {request.folderUrl ? (
+                    <Link
+                      href={request.folderUrl}
+                      target="_blank"
+                      className="inline-flex text-[11px] font-semibold uppercase tracking-[0.18em] text-amber underline-offset-4 hover:underline sm:text-xs"
+                    >
+                      {t('historyTable.openFolder')}
+                    </Link>
+                  ) : null}
+                  {onCancel && canCancelRequest(request) ? (
+                    <button
+                      type="button"
+                      onClick={() => onCancel(request)}
+                      disabled={cancelingId === request.id}
+                      className="rounded-full border border-clay/35 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-clay transition hover:border-clay/60 hover:bg-clay/10 disabled:cursor-wait disabled:opacity-60 sm:text-xs"
+                    >
+                      {cancelingId === request.id ? t('historyTable.canceling') : t('historyTable.cancelRequest')}
+                    </button>
+                  ) : null}
+                </div>
                 <p className="shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-steel sm:text-xs">
                   {formatDateTime(request.dataAbertura)}
                 </p>

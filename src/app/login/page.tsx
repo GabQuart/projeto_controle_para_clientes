@@ -2,7 +2,6 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { LoadingOverlay } from '@/components/LoadingOverlay'
 import { useTranslations } from '@/components/providers/LocaleProvider'
@@ -11,7 +10,6 @@ type AuthMode = 'login' | 'primeiro_acesso'
 
 export default function LoginPage() {
   const t = useTranslations()
-  const router = useRouter()
   const [mode, setMode] = useState<AuthMode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,6 +26,10 @@ export default function LoginPage() {
     return target && target.startsWith('/') ? target : '/catalogo'
   }
 
+  function redirectAfterAuth() {
+    window.location.assign(getNextPath())
+  }
+
   useEffect(() => {
     const callbackError = new URLSearchParams(window.location.search).get('error')
 
@@ -40,12 +42,17 @@ export default function LoginPage() {
   }, [])
 
   async function handleLogin() {
+    if (submitting) {
+      return
+    }
+
     setSubmitting(true)
     setFeedback(null)
 
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -60,8 +67,7 @@ export default function LoginPage() {
         throw new Error(payload.error || 'Falha ao entrar no sistema')
       }
 
-      router.replace(getNextPath())
-      router.refresh()
+      redirectAfterAuth()
     } catch (error) {
       setFeedback({
         type: 'error',
@@ -73,6 +79,10 @@ export default function LoginPage() {
   }
 
   async function handleFirstAccess() {
+    if (submitting) {
+      return
+    }
+
     setSubmitting(true)
     setFeedback(null)
 
@@ -87,6 +97,7 @@ export default function LoginPage() {
 
       const response = await fetch('/api/auth/primeiro-acesso', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -102,8 +113,7 @@ export default function LoginPage() {
         throw new Error(payload.error || 'Falha ao ativar o primeiro acesso')
       }
 
-      router.replace(getNextPath())
-      router.refresh()
+      redirectAfterAuth()
     } catch (error) {
       setFeedback({
         type: 'error',

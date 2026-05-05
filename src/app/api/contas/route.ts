@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createAccount, getAuthenticatedAccount, listAccountDirectory, listAccounts, requireAdminAccount } from '@/lib/services/account.service'
+import { createAccount, getAuthenticatedAccount, listAccountDirectory, listAccounts, requireAdminAccount, updateAccount } from '@/lib/services/account.service'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,6 +52,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ data }, { status: 201, headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Falha ao criar conta'
+    const status = message.includes('administradores') || message.includes('Sessao autenticada') ? 403 : 400
+    return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } })
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const payload = await request.json()
+    await requireAdminAccount()
+
+    const data = await updateAccount(payload)
+    return NextResponse.json({ data }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Falha ao atualizar conta'
     const status = message.includes('administradores') || message.includes('Sessao autenticada') ? 403 : 400
     return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } })
   }

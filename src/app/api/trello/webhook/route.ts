@@ -101,6 +101,7 @@ async function concludeProductRequest(cardId: string): Promise<boolean> {
       atualizado_em: now,
     })
     .eq('trello_card_id', cardId)
+    .neq('status', 'cancelado')
     .select('id_solicitacao')
 
   if (error) {
@@ -125,7 +126,7 @@ async function concludeOperationalRequest(cardId: string): Promise<boolean> {
   // Busca o registro pelo cardId para reaplicar o status no catálogo se necessário
   const { data: row, error: fetchError } = await supabase
     .from('solicitacoes_operacionais')
-    .select('id, sku_base, tipo_alteracao, variacoes_selecionadas')
+    .select('id, sku_base, tipo_alteracao, variacoes_selecionadas, status')
     .eq('trello_card_id', cardId)
     .maybeSingle()
 
@@ -134,6 +135,11 @@ async function concludeOperationalRequest(cardId: string): Promise<boolean> {
   }
 
   try {
+    if ((row.status as string | null) === 'cancelado') {
+      console.info('[trello/webhook] Solicitacao operacional cancelada; conclusao ignorada, id:', row.id)
+      return true
+    }
+
     const tipoAlteracao = row.tipo_alteracao as string
     const skuBase = row.sku_base as string
     const variacoes: string[] = Array.isArray(row.variacoes_selecionadas) ? row.variacoes_selecionadas : []

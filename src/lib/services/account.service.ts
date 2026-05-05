@@ -7,6 +7,7 @@ import type {
   AccountDirectoryEntry,
   AccountRecordRow,
   CreateAccountInput,
+  UpdateAccountInput,
   UserAccount,
 } from '@/types/account'
 import type { CatalogProduct } from '@/types/catalog'
@@ -73,7 +74,10 @@ function mapAccountRow(row: AccountRecordRow): UserAccount {
   }
 }
 
-function buildAccessRows(accountId: string, input: CreateAccountInput) {
+function buildAccessRows(
+  accountId: string,
+  input: Pick<CreateAccountInput, 'clienteCods' | 'fornecedorPrefixes' | 'loja' | 'role'>,
+) {
   if (input.role === 'admin') {
     return [] satisfies AccountAccessScopeRow[]
   }
@@ -115,7 +119,7 @@ function buildAccessRows(accountId: string, input: CreateAccountInput) {
   }))
 }
 
-async function fetchAccountRows(options: { email?: string } = {}) {
+async function fetchAccountRows(options: { email?: string; id?: string } = {}) {
   const supabase = await createClient()
   let query = supabase
     .from(ACCOUNTS_TABLE)
@@ -124,6 +128,10 @@ async function fetchAccountRows(options: { email?: string } = {}) {
 
   if (options.email) {
     query = query.eq('email', normalizeEmail(options.email))
+  }
+
+  if (options.id) {
+    query = query.eq('id', options.id)
   }
 
   const { data, error } = await query
@@ -215,6 +223,15 @@ export async function getAccountByEmail(email: string) {
   }
 
   const rows = await fetchAccountRows({ email })
+  return rows[0] ? mapAccountRow(rows[0]) : null
+}
+
+export async function getAccountById(id: string) {
+  if (!id) {
+    return null
+  }
+
+  const rows = await fetchAccountRows({ id })
   return rows[0] ? mapAccountRow(rows[0]) : null
 }
 
@@ -378,7 +395,73 @@ export async function createAccount(input: CreateAccountInput) {
     }
   }
 
-  return validateActiveAccount(email)
+  const createdAccount = await getAccountById(data.id)
+
+  if (!createdAccount) {
+    throw new Error('Conta criada, mas nao foi possivel recarregar os dados.')
+  }
+
+  return createdAccount
+}
+
+export async function updateAccount(input: UpdateAccountInput) {
+  const actor = await requireAdminAccount()
+  const accountId = compactText(input.id)
+  const nome = compactText(input.nome)
+
+  if (!accountId || !nome) {
+    throw new Error('Informe a conta e o nome para atualizar.')
+  }
+
+  const currentAccount = await getAccountById(accountId)
+
+  if (!currentAccount) {
+    throw new Error('Conta nao encontrada para edicao.')
+  }
+
+  if (normalizeEmail(actor.email) === normalizeEmail(currentAccount.email) && (input.role !== 'admin' || input.ativo === false)) {
+    throw new Error('Nao desative nem remova o perfil admin da sua propria conta.')
+  }
+
+  const supabase = await createClient()
+  const scopeType = input.role === 'admin' ? 'all' : compactText(input.loja) === 'Presente Net' ? 'fornecedor_prefix' : 'cliente_cod'
+  const accessRows = buildAccessRows(accountId, input)
+
+  const { error: accountError } = await supabase
+    .from(ACCOUNTS_TABLE)
+    .update({
+      nome,
+      role: input.role,
+      ativo: input.ativo ?? true,
+      scope_type: scopeType,
+    })
+    .eq('id', accountId)
+
+  if (accountError) {
+    throw new Error(`Falha ao atualizar a conta no Supabase: ${accountError.message}`)
+  }
+
+  const { error: deleteScopesError } = await supabase.from(ACCOUNT_SCOPES_TABLE).delete().eq('account_id', accountId)
+
+  if (deleteScopesError) {
+    throw new Error(`Falha ao atualizar os acessos da conta: ${deleteScopesError.message}`)
+  }
+
+  if (accessRows.length > 0) {
+    const { error: insertScopesError } = await supabase.from(ACCOUNT_SCOPES_TABLE).insert(accessRows)
+
+    if (insertScopesError) {
+      throw new Error(`Falha ao recriar os acessos da conta: ${insertScopesError.message}`)
+    }
+  }
+
+  const updatedAccount = await getAccountById(accountId)
+
+  if (!updatedAccount) {
+    throw new Error('Conta atualizada, mas nao foi possivel recarregar os dados.')
+  }
+
+  return updatedAccount
 }
 
 export function buildAccountCatalogScope(account: UserAccount): AccountCatalogScope {

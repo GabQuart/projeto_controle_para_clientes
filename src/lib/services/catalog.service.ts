@@ -1,13 +1,14 @@
 import { createAdminClient } from '@/utils/supabase/admin'
 import {
   buildGoogleDriveFolderLink,
+  type DriveImageReference,
   extractGoogleDriveId,
   isGoogleDriveFolderLink,
   resolveReferenceImage,
   resolveReferenceImageGallery,
 } from '@/lib/google/drive'
 import { compactText, normalizeText, splitList, toBooleanFlag } from '@/lib/utils/format'
-import { buildDriveThumbnailUrl } from '@/lib/utils/drive-url'
+import { buildDriveImageApiUrl } from '@/lib/utils/drive-url'
 import { matchesSkuTerm, normalizeSku } from '@/lib/utils/sku'
 import { getCatalogCache, patchCatalogCacheItems } from '@/lib/services/catalog-cache.service'
 import type {
@@ -82,7 +83,15 @@ function buildProductImageApiPath(link?: string) {
   }
 
   const kind = isGoogleDriveFolderLink(link) ? 'folder' : 'file'
-  return `/api/catalogo/imagem/${driveId}?kind=${kind}`
+  return buildDriveImageApiUrl(driveId, kind)
+}
+
+function buildProductImageApiPathFromReference(reference?: DriveImageReference | null) {
+  if (!reference?.fileId) {
+    return reference?.usableUrl ?? ''
+  }
+
+  return buildDriveImageApiUrl(reference.fileId, 'file')
 }
 
 async function readAllRows<RowType>(table: string, columns = '*') {
@@ -141,7 +150,7 @@ function mapProductRow(row: MirrorProductRow, storeByClient: Map<string, string>
     skuBase,
     prefixoSku,
     titulo: compactText(row.titulo || ''),
-    fotoRef: fotoDriveKind === 'file' ? buildDriveThumbnailUrl(fotoFileId) : buildProductImageApiPath(fotoLink),
+    fotoRef: buildProductImageApiPath(fotoLink),
     fotoFileId,
     fotoDriveKind,
     cores: parseListValue(row.cores),
@@ -242,7 +251,40 @@ function filterCatalog(products: CatalogProduct[], query: CatalogQuery) {
 }
 
 function isResolvedDriveImage(product: CatalogProduct) {
-  return Boolean(product.fotoRef?.includes('drive.google.com/thumbnail'))
+  return Boolean(product.fotoRef?.includes('/api/catalogo/imagem/') && product.fotoRef.includes('kind=file'))
+}
+
+function normalizeDriveImageSrc(value?: string, kind: 'file' | 'folder' = 'file') {
+  if (!value) {
+    return ''
+  }
+
+  if (value.startsWith('/api/catalogo/imagem/') || value.startsWith('/placeholder-product.svg')) {
+    return value
+  }
+
+  if (!/drive\.google\.com/i.test(value)) {
+    return value
+  }
+
+  const driveId = extractGoogleDriveId(value)
+
+  if (!driveId) {
+    return value
+  }
+
+  return buildDriveImageApiUrl(driveId, kind)
+}
+
+function normalizeCatalogProductImageReferences(product: CatalogProduct): CatalogProduct {
+  const fotoRef = normalizeDriveImageSrc(product.fotoRef, 'file') || product.fotoRef || '/placeholder-product.svg'
+  const fotoGaleria = product.fotoGaleria?.map((image) => normalizeDriveImageSrc(image, 'file') || image).filter(Boolean)
+
+  return {
+    ...product,
+    fotoRef,
+    fotoGaleria: fotoGaleria?.length ? Array.from(new Set(fotoGaleria)) : product.fotoGaleria,
+  }
 }
 
 function normalizeGalleryUrls(product: CatalogProduct, images: string[]) {
@@ -320,7 +362,7 @@ async function getCatalogBase(options: { forceRefresh?: boolean } = {}) {
 
 export async function listCatalog(query: CatalogQuery = {}) {
   const { items } = await getCatalogBase({ forceRefresh: query.forceRefresh })
-  return filterCatalog(items, query)
+  return filterCatalog(items.map(normalizeCatalogProductImageReferences), query)
 }
 
 export async function enrichCatalogProductImages(products: CatalogProduct[]) {
@@ -337,13 +379,15 @@ export async function enrichCatalogProductImages(products: CatalogProduct[]) {
       try {
         const image = await resolveReferenceImage(buildGoogleDriveFolderLink(product.fotoFileId))
 
-        if (!image.usableUrl) {
+        const fotoRef = buildProductImageApiPathFromReference(image)
+
+        if (!fotoRef) {
           return null
         }
 
         return {
           skuBase: product.skuBase,
-          fotoRef: image.usableUrl,
+          fotoRef,
         }
       } catch {
         return null
@@ -397,7 +441,7 @@ export async function getCatalogCacheMetadata(options: { forceRefresh?: boolean 
 
 export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariacao?: string; forceRefresh?: boolean }) {
   const { items: catalog } = await getCatalogBase({ forceRefresh: input.forceRefresh })
-  const product = catalog.find((item) => item.skuBase === normalizeSku(input.skuBase))
+  const product = catalog.map(normalizeCatalogProductImageReferences).find((item) => item.skuBase === normalizeSku(input.skuBase))
 
   if (!product) {
     throw new Error('Produto nao encontrado para gerar snapshot da solicitacao')
@@ -416,7 +460,7 @@ export async function getCatalogSnapshotItem(input: { skuBase: string; skuVariac
 export async function getCatalogProductGallery(input: { skuBase: string; forceRefresh?: boolean }) {
   const normalizedSkuBase = normalizeSku(input.skuBase)
   const { items } = await getCatalogBase({ forceRefresh: input.forceRefresh })
-  const product = items.find((item) => item.skuBase === normalizedSkuBase)
+  const product = items.map(normalizeCatalogProductImageReferences).find((item) => item.skuBase === normalizedSkuBase)
 
   if (!product) {
     throw new Error('Produto nao encontrado para carregar a galeria.')
@@ -433,7 +477,7 @@ export async function getCatalogProductGallery(input: { skuBase: string; forceRe
   const gallery = await resolveReferenceImageGallery(buildGoogleDriveFolderLink(product.fotoFileId), { limit: 3 })
   const urls = normalizeGalleryUrls(
     product,
-    gallery.images.map((image) => image.usableUrl || '').filter(Boolean),
+    gallery.images.map(buildProductImageApiPathFromReference).filter(Boolean),
   )
   const galleryFileIds = gallery.images.map((image) => image.fileId || '').filter(Boolean)
 

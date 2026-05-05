@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { filterRequestsForAccount, getAuthenticatedAccount } from '@/lib/services/account.service'
-import { createBatchRequests, createRequest, listRequests } from '@/lib/services/request.service'
+import { cancelRequest, createBatchRequests, createRequest, listRequests } from '@/lib/services/request.service'
 import type { RequestHistoryType, RequestHistoryStatus } from '@/types/request'
 
 export const dynamic = 'force-dynamic'
@@ -54,5 +54,28 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Falha ao criar solicitacao'
     return NextResponse.json({ error: message }, { status: 400, headers: { 'Cache-Control': 'no-store' } })
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const account = await getAuthenticatedAccount()
+
+    if (!account) {
+      return NextResponse.json({ error: 'Sessao autenticada nao encontrada.' }, { status: 401, headers: { 'Cache-Control': 'no-store' } })
+    }
+
+    const payload = await request.json()
+    const data = await cancelRequest({
+      account,
+      id: payload.id,
+      tipoSolicitacao: payload.tipoSolicitacao as RequestHistoryType | undefined,
+    })
+
+    return NextResponse.json({ data }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Falha ao cancelar solicitacao'
+    const status = message.includes('permissao') ? 403 : message.includes('nao encontrada') ? 404 : 400
+    return NextResponse.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } })
   }
 }

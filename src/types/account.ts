@@ -50,8 +50,19 @@ export type CreateAccountInput = {
   confirmEmail?: boolean
 }
 
+export type UpdateAccountInput = {
+  id: string
+  nome: string
+  role: AccountRole
+  loja?: string
+  clienteCods?: string[]
+  fornecedorPrefixes?: string[]
+  ativo?: boolean
+}
+
 export type AccountAccessScopeRow = {
   id?: string
+  account_id?: string
   loja: string
   cliente_cod: string | null
   fornecedor_prefix: string | null

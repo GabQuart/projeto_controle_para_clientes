@@ -25,6 +25,8 @@ function handleRequest_(method, e) {
         return ok_(resolveDriveImage_(params.linkOrId))
       case 'resolveDriveImageGallery':
         return ok_(resolveDriveImageGallery_(params.linkOrId, params.limit))
+      case 'getDriveImageData':
+        return ok_(getDriveImageData_(params.fileId))
       case 'resolveRequestFolderImage':
         return ok_(resolveRequestFolderImage_(params.parentFolderId, params.requestId, params.rootFolderName))
       case 'uploadFilesToRequestFolder':
@@ -461,6 +463,30 @@ function mapDriveFile_(file, folderId) {
     fileId: fileId,
     originalUrl: buildDriveFileViewUrl_(fileId),
     usableUrl: buildDriveThumbnailUrl_(fileId),
+  }
+}
+
+function getDriveImageData_(fileId) {
+  var resolvedId = extractDriveId_(fileId)
+
+  if (!resolvedId) {
+    throw new Error('Arquivo de imagem nao informado')
+  }
+
+  var file = DriveApp.getFileById(resolvedId)
+  var mimeType = String(file.getMimeType() || '')
+
+  if (mimeType.indexOf('image/') !== 0) {
+    throw new Error('O arquivo do Drive nao e uma imagem valida')
+  }
+
+  var blob = file.getBlob()
+
+  return {
+    fileId: resolvedId,
+    fileName: file.getName(),
+    mimeType: mimeType,
+    base64Content: Utilities.base64Encode(blob.getBytes()),
   }
 }
 

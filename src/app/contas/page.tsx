@@ -11,6 +11,7 @@ type FormState = {
   nome: string
   email: string
   role: 'admin' | 'cliente'
+  ativo: boolean
   loja: string
   clienteCods: string[]
   fornecedorPrefixes: string[]
@@ -23,6 +24,7 @@ const EMPTY_FORM: FormState = {
   nome: '',
   email: '',
   role: 'cliente',
+  ativo: true,
   loja: '',
   clienteCods: [],
   fornecedorPrefixes: [],
@@ -38,6 +40,7 @@ export default function ContasPage() {
   const [accounts, setAccounts] = useState<UserAccount[]>([])
   const [directory, setDirectory] = useState<AccountDirectoryEntry[]>([])
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
+  const [editingAccountId, setEditingAccountId] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [syncingDirectory, setSyncingDirectory] = useState(false)
@@ -110,6 +113,30 @@ export default function ContasPage() {
     () => Array.from(new Set(scopedDirectory.map((entry) => entry.fornecedorPrefix))).sort((a, b) => a.localeCompare(b, 'pt-BR')),
     [scopedDirectory],
   )
+  const isEditing = Boolean(editingAccountId)
+
+  function resetForm() {
+    setForm(EMPTY_FORM)
+    setEditingAccountId('')
+  }
+
+  function startEditing(item: UserAccount) {
+    setForm({
+      nome: item.nome,
+      email: item.email,
+      role: item.role,
+      ativo: item.ativo,
+      loja: item.access.lojas[0] ?? '',
+      clienteCods: item.access.clienteCods,
+      fornecedorPrefixes: item.access.fornecedorPrefixes,
+      provisionAuthUser: false,
+      temporaryPassword: '',
+      confirmEmail: true,
+    })
+    setEditingAccountId(item.id)
+    setFeedback(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   function toggleValue(field: 'clienteCods' | 'fornecedorPrefixes', value: string) {
     setForm((current) => ({
@@ -151,34 +178,35 @@ export default function ContasPage() {
 
     try {
       const response = await fetch('/api/contas', {
-        method: 'POST',
+        method: isEditing ? 'PATCH' : 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           ...form,
+          id: editingAccountId,
         }),
       })
 
       const payload = await response.json()
 
       if (!response.ok) {
-        throw new Error(payload.error || 'Falha ao criar conta')
+        throw new Error(payload.error || (isEditing ? 'Falha ao atualizar conta' : 'Falha ao criar conta'))
       }
 
       const refreshPayload = await loadAccountsBundle()
       setAccounts(refreshPayload.data ?? [])
       setDirectory(refreshPayload.directory ?? [])
 
-      setForm(EMPTY_FORM)
+      resetForm()
       setFeedback({
         type: 'success',
-        message: 'Conta criada com sucesso e pronta para usar login por e-mail.',
+        message: isEditing ? 'Conta atualizada com sucesso.' : 'Conta criada com sucesso e pronta para usar login por e-mail.',
       })
     } catch (error) {
       setFeedback({
         type: 'error',
-        message: error instanceof Error ? error.message : 'Falha ao criar conta',
+        message: error instanceof Error ? error.message : isEditing ? 'Falha ao atualizar conta' : 'Falha ao criar conta',
       })
     } finally {
       setSaving(false)
@@ -209,7 +237,9 @@ export default function ContasPage() {
 
       <section className="mt-6 grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
         <form onSubmit={handleSubmit} className="panel rounded-[32px] p-5 sm:p-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-amber">{t('accounts.newAccess')}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.26em] text-amber">
+            {isEditing ? t('accounts.editAccess') : t('accounts.newAccess')}
+          </p>
           {syncingDirectory ? (
             <div className="mt-4 rounded-2xl border border-amber/20 bg-amber/10 px-4 py-3 text-sm text-amber">
               {t('accounts.syncingBanner')}
@@ -237,14 +267,16 @@ export default function ContasPage() {
                 type="email"
                 value={form.email}
                 onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                disabled={isEditing}
                 className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
                 placeholder={t('accounts.emailPlaceholder')}
                 required
               />
+              {isEditing ? <span className="text-[11px] normal-case tracking-normal text-steel">{t('accounts.editingEmailLocked')}</span> : null}
             </label>
           </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div className="mt-4 grid gap-4 sm:grid-cols-3">
             <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-steel">
               {t('accounts.role')}
               <select
@@ -288,8 +320,19 @@ export default function ContasPage() {
                 ))}
               </select>
             </label>
+
+            <label className="brand-chip flex items-center gap-3 self-end rounded-2xl px-4 py-3 text-sm text-ink">
+              <input
+                type="checkbox"
+                checked={form.ativo}
+                onChange={(event) => setForm((current) => ({ ...current, ativo: event.target.checked }))}
+                className="h-4 w-4 rounded border-white/10 bg-slate text-amber focus:ring-amber"
+              />
+              <span>{t('accounts.activeAccount')}</span>
+            </label>
           </div>
 
+          {!isEditing ? (
           <div className="mt-6 rounded-3xl border border-white/10 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -340,6 +383,7 @@ export default function ContasPage() {
               </div>
             ) : null}
           </div>
+          ) : null}
 
           {form.role === 'cliente' && form.loja === 'Presente Net' ? (
             <div className="mt-6">
@@ -395,14 +439,14 @@ export default function ContasPage() {
               disabled={saving || loading}
               className="rounded-full bg-cobalt px-5 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#418dff] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {saving ? t('accounts.saving') : t('accounts.createAccount')}
+              {saving ? t('accounts.saving') : isEditing ? t('accounts.updateAccount') : t('accounts.createAccount')}
             </button>
             <button
               type="button"
-              onClick={() => setForm(EMPTY_FORM)}
+              onClick={resetForm}
               className="brand-chip rounded-full px-5 py-3 text-sm font-semibold text-ink"
             >
-              {t('common.clear')}
+              {isEditing ? t('accounts.cancelEdit') : t('common.clear')}
             </button>
             <button
               type="button"
@@ -449,6 +493,15 @@ export default function ContasPage() {
                         </span>
                       ))
                     )}
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => startEditing(item)}
+                      className="rounded-full bg-cobalt px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-white transition hover:bg-[#418dff]"
+                    >
+                      {t('accounts.editAccount')}
+                    </button>
                   </div>
                 </article>
               ))}

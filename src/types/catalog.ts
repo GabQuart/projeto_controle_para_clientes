@@ -31,6 +31,7 @@ export type CatalogProduct = {
 }
 
 export type CatalogStatusFilter = 'todos' | 'ativos' | 'inativos' | 'com_inativas'
+export type CatalogSortOrder = 'padrao' | 'sku_asc' | 'sku_desc'
 
 export type CatalogQuery = {
   clienteCod?: string
@@ -39,6 +40,7 @@ export type CatalogQuery = {
   pageSize?: number
   forceRefresh?: boolean
   statusFilter?: CatalogStatusFilter
+  sortOrder?: CatalogSortOrder
 }
 
 export type CatalogPagination = {

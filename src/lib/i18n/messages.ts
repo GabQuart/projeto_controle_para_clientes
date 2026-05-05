@@ -91,6 +91,12 @@ export const messages = {
       },
       "supplier": "Fornecedor",
       "allSuppliers": "Todos os fornecedores",
+      "sort": "Ordem",
+      "sortOptions": {
+        "default": "Padrao",
+        "skuAsc": "SKU crescente",
+        "skuDesc": "SKU decrescente"
+      },
       "summary": "Resumo",
       "summaryProducts": "{current} de {total} produtos",
       "summaryVariants": "{count} variacoes na pagina",
@@ -121,6 +127,7 @@ export const messages = {
       "searchLabel": "Busca no historico",
       "type": "Tipo",
       "status": "Status",
+      "sort": "Ordem",
       "typeOptions": {
         "all": "Todos",
         "operational": "Ativar ou inativar",
@@ -134,6 +141,13 @@ export const messages = {
         "completed": "Concluido",
         "canceled": "Cancelado"
       },
+      "sortOptions": {
+        "recent": "Mais recentes",
+        "skuAsc": "SKU crescente",
+        "skuDesc": "SKU decrescente"
+      },
+      "cancelConfirm": "Deseja cancelar esta solicitacao?",
+      "canceling": "Cancelando solicitacao...",
       "loading": "Carregando historico...",
       "loadError": "Falha ao carregar historico"
     },
@@ -142,15 +156,18 @@ export const messages = {
       "title": "Cadastro de acessos para admin e clientes",
       "currentAdmin": "Admin atual: {name}",
       "newAccess": "Novo acesso",
+      "editAccess": "Editar acesso",
       "syncingBanner": "Sincronizando lojas, clientes e fornecedores a partir da base atual...",
       "emptyDirectory": "Ainda nao encontramos lojas no diretorio. Verifique se a migracao rodou e se o admin tem acesso para sincronizar a base.",
       "name": "Nome",
       "namePlaceholder": "Nome da conta",
       "email": "E-mail",
       "emailPlaceholder": "cliente@empresa.com",
+      "editingEmailLocked": "O e-mail fica bloqueado na edicao para nao desconectar o login do Supabase.",
       "role": "Perfil",
       "store": "Loja",
       "select": "Selecione",
+      "activeAccount": "Conta ativa",
       "roleOptions": {
         "client": "Cliente",
         "admin": "Admin"
@@ -164,6 +181,9 @@ export const messages = {
       "enabledSuppliers": "Fornecedores liberados",
       "linkedClients": "Clientes vinculados",
       "createAccount": "Criar conta",
+      "updateAccount": "Atualizar conta",
+      "cancelEdit": "Cancelar edicao",
+      "editAccount": "Editar",
       "syncingBase": "Sincronizar base",
       "syncing": "Sincronizando...",
       "saving": "Salvando...",
@@ -306,6 +326,8 @@ export const messages = {
       "sku": "SKU: {sku}",
       "images": "{count} imagem(ns)",
       "openFolder": "Abrir pasta das imagens",
+      "cancelRequest": "Cancelar solicitacao",
+      "canceling": "Cancelando...",
       "newProductLabel": "Novo produto"
     }
   },

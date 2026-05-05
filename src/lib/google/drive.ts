@@ -1,5 +1,5 @@
 ﻿import { requestAppsScript } from '@/lib/google/apps-script'
-import { buildDriveFileViewUrl, buildDriveFolderUrl, buildDriveThumbnailUrl, extractDriveId } from '@/lib/utils/drive-url'
+import { buildDriveFileViewUrl, buildDriveFolderUrl, buildDriveImageApiUrl, buildDriveThumbnailUrl, extractDriveId } from '@/lib/utils/drive-url'
 
 export type DriveImageReference = {
   fileId?: string
@@ -32,6 +32,13 @@ export type DriveUploadResult = {
   files: DriveUploadedFileReference[]
 }
 
+export type DriveImageData = {
+  fileId: string
+  fileName?: string
+  mimeType: string
+  base64Content: string
+}
+
 export type DriveRequestFolderImageReference = {
   requestId: string
   folderId?: string
@@ -51,10 +58,10 @@ export function convertGoogleDriveLinkToUsableUrl(value?: string | null) {
   }
 
   if ((value ?? '').includes('/folders/')) {
-    return `https://drive.google.com/drive/folders/${id}`
+    return buildDriveImageApiUrl(id, 'folder')
   }
 
-  return buildDriveThumbnailUrl(id)
+  return buildDriveImageApiUrl(id, 'file')
 }
 
 export function isGoogleDriveFolderLink(value?: string | null) {
@@ -116,6 +123,20 @@ export async function resolveReferenceImageGallery(
     query: {
       linkOrId: linkOrId ?? resolvedId,
       limit: String(limit),
+    },
+  })
+}
+
+export async function getDriveImageData(fileId?: string | null) {
+  const resolvedId = extractDriveId(fileId)
+
+  if (!resolvedId) {
+    throw new Error('Arquivo de imagem nao informado.')
+  }
+
+  return requestAppsScript<DriveImageData>('getDriveImageData', {
+    query: {
+      fileId: resolvedId,
     },
   })
 }

@@ -12,6 +12,7 @@ import {
   buildProductRequestCardDesc,
 } from '@/lib/services/trello.service'
 import { getOptionalEnv } from '@/lib/env'
+import { buildDriveImageApiUrl } from '@/lib/utils/drive-url'
 import { compactText, normalizeText } from '@/lib/utils/format'
 import { createSimpleId } from '@/lib/utils/id'
 import type { UserAccount } from '@/types/account'
@@ -84,6 +85,14 @@ type CreateProductRequestInput = {
 
 let cachedRequestOptions: Pick<ProductRequestOptions, 'colors' | 'sizeGroups'> | null = null
 const requestImageCache = new Map<string, string>()
+
+function buildProductRequestImageUrl(image?: { fileId?: string; usableUrl?: string; originalUrl?: string } | null) {
+  if (image?.fileId) {
+    return buildDriveImageApiUrl(image.fileId, 'file')
+  }
+
+  return image?.usableUrl ?? image?.originalUrl ?? ''
+}
 
 function unique(values: string[]) {
   return Array.from(new Set(values.map((value) => compactText(value)).filter(Boolean)))
@@ -529,7 +538,7 @@ async function resolveProductRequestImage(row: ProductRequestSheetRow) {
   if (folderUrl) {
     try {
       const gallery = await resolveReferenceImageGallery(folderUrl, { limit: 1 })
-      const galleryImage = gallery.images[0]?.usableUrl ?? gallery.images[0]?.originalUrl ?? ''
+      const galleryImage = buildProductRequestImageUrl(gallery.images[0])
 
       if (galleryImage) {
         requestImageCache.set(requestId, galleryImage)
@@ -548,7 +557,7 @@ async function resolveProductRequestImage(row: ProductRequestSheetRow) {
         rootFolderName: PRODUCT_REQUESTS_DRIVE_ROOT,
       })
 
-      const driveImage = resolved.image?.usableUrl ?? resolved.image?.originalUrl ?? ''
+      const driveImage = buildProductRequestImageUrl(resolved.image)
 
       if (driveImage) {
         requestImageCache.set(requestId, driveImage)

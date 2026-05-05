@@ -29,6 +29,11 @@ export function buildDriveThumbnailUrl(fileId?: string | null) {
   return id ? `https://drive.google.com/thumbnail?id=${id}&sz=w1200` : ''
 }
 
+export function buildDriveImageApiUrl(fileId?: string | null, kind: 'file' | 'folder' = 'file') {
+  const id = extractDriveId(fileId)
+  return id && /^[a-zA-Z0-9_-]+$/.test(id) ? `/api/catalogo/imagem/${encodeURIComponent(id)}?kind=${kind}` : ''
+}
+
 export function buildDriveFolderUrl(folderId?: string | null) {
   const id = extractDriveId(folderId)
   return id ? `https://drive.google.com/drive/folders/${id}` : ''

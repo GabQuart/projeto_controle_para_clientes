@@ -17,6 +17,7 @@ import type {
   ChangeRequest,
   ChangeRequestFilters,
   RequestHistoryEntry,
+  RequestHistoryStatus,
   RequestHistoryType,
   RequestedVariantStock,
 } from '@/types/request'
@@ -112,6 +113,35 @@ function matchesFilters(request: RequestHistoryEntry, filters: ChangeRequestFilt
   }
 
   return true
+}
+
+function canAccountManageRequest(account: UserAccount, operatorEmail?: string | null) {
+  if (account.role === 'admin') {
+    return true
+  }
+
+  return compactText(operatorEmail ?? '').toLowerCase() === compactText(account.email).toLowerCase()
+}
+
+function getProductRequesterEmail(value?: string | null) {
+  const [, email = ''] = String(value ?? '').split('|')
+  return compactText(email)
+}
+
+function assertCancelableStatus(status?: string | null): asserts status is RequestHistoryStatus {
+  const normalized = compactText(status ?? '') as RequestHistoryStatus
+
+  if (normalized === 'concluido') {
+    throw new Error('Solicitacoes concluidas nao podem ser canceladas.')
+  }
+
+  if (normalized === 'cancelado') {
+    throw new Error('Esta solicitacao ja foi cancelada.')
+  }
+
+  if (!['pendente', 'nao_concluido', 'em_andamento'].includes(normalized)) {
+    throw new Error('Status da solicitacao nao permite cancelamento.')
+  }
 }
 
 function resolveSelectedVariants(
@@ -498,4 +528,83 @@ export async function listRequests(filters: ChangeRequestFilters = {}) {
   return [...operationalRequests, ...productRequests].sort(
     (a, b) => new Date(b.dataAbertura).getTime() - new Date(a.dataAbertura).getTime(),
   )
+}
+
+export async function cancelRequest(input: {
+  account: UserAccount
+  id: string
+  tipoSolicitacao?: RequestHistoryType
+}) {
+  const id = compactText(input.id)
+
+  if (!id) {
+    throw new Error('Informe a solicitacao para cancelar.')
+  }
+
+  const supabase = createAdminClient()
+  const now = new Date().toISOString()
+
+  if (!input.tipoSolicitacao || input.tipoSolicitacao === 'operacional') {
+    const { data: row, error: readError } = await supabase
+      .from(OP_TABLE)
+      .select('id,operador_email,status')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (readError) {
+      throw new Error(`Falha ao carregar solicitacao: ${readError.message}`)
+    }
+
+    if (row) {
+      if (!canAccountManageRequest(input.account, row.operador_email as string | null)) {
+        throw new Error('Voce nao tem permissao para cancelar esta solicitacao.')
+      }
+
+      assertCancelableStatus(row.status as string | null)
+
+      const { error: updateError } = await supabase
+        .from(OP_TABLE)
+        .update({ status: 'cancelado', data_conclusao: now, atualizado_em: now })
+        .eq('id', id)
+
+      if (updateError) {
+        throw new Error(`Falha ao cancelar solicitacao: ${updateError.message}`)
+      }
+
+      return { id, tipoSolicitacao: 'operacional' as const, status: 'cancelado' as const }
+    }
+  }
+
+  if (!input.tipoSolicitacao || input.tipoSolicitacao === 'novo_produto') {
+    const { data: row, error: readError } = await supabase
+      .from('solicitacoes_produto')
+      .select('id_solicitacao,solicitante,status')
+      .eq('id_solicitacao', id)
+      .maybeSingle()
+
+    if (readError) {
+      throw new Error(`Falha ao carregar solicitacao de produto: ${readError.message}`)
+    }
+
+    if (row) {
+      if (!canAccountManageRequest(input.account, getProductRequesterEmail(row.solicitante as string | null))) {
+        throw new Error('Voce nao tem permissao para cancelar esta solicitacao.')
+      }
+
+      assertCancelableStatus(row.status as string | null)
+
+      const { error: updateError } = await supabase
+        .from('solicitacoes_produto')
+        .update({ status: 'cancelado', data_conclusao: now, atualizado_em: now })
+        .eq('id_solicitacao', id)
+
+      if (updateError) {
+        throw new Error(`Falha ao cancelar solicitacao de produto: ${updateError.message}`)
+      }
+
+      return { id, tipoSolicitacao: 'novo_produto' as const, status: 'cancelado' as const }
+    }
+  }
+
+  throw new Error('Solicitacao nao encontrada.')
 }

@@ -8,8 +8,15 @@ import { LoadingOverlay } from '@/components/LoadingOverlay'
 import { useTranslations } from '@/components/providers/LocaleProvider'
 import { SearchBar } from '@/components/SearchBar'
 import { normalizeText } from '@/lib/utils/format'
+import { compareSkuNaturally } from '@/lib/utils/sku'
 import type { UserAccount } from '@/types/account'
 import type { RequestHistoryEntry, RequestHistoryStatus, RequestHistoryType } from '@/types/request'
+
+type HistorySortOrder = 'recentes' | 'sku_asc' | 'sku_desc'
+
+function getRequestSkuForSort(request: RequestHistoryEntry) {
+  return request.skuVariacao || request.skuBase || request.id
+}
 
 export default function HistoricoPage() {
   const t = useTranslations()
@@ -19,7 +26,9 @@ export default function HistoricoPage() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState<RequestHistoryStatus | 'todos'>('todos')
   const [requestType, setRequestType] = useState<RequestHistoryType | 'todos'>('todos')
+  const [sortOrder, setSortOrder] = useState<HistorySortOrder>('recentes')
   const [loading, setLoading] = useState(true)
+  const [cancelingId, setCancelingId] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -89,18 +98,62 @@ export default function HistoricoPage() {
     loadHistory()
   }, [account, requestType, router, status])
 
-  const filteredRequests = useMemo(() => {
-    const normalized = normalizeText(search)
-
-    if (!normalized) {
-      return requests
+  async function handleCancelRequest(request: RequestHistoryEntry) {
+    if (!window.confirm(t('history.cancelConfirm'))) {
+      return
     }
 
-    return requests.filter((request) => {
-      const searchBlob = normalizeText(`${request.titulo} ${request.skuBase} ${request.skuVariacao ?? ''} ${request.detalhe} ${request.id}`)
-      return searchBlob.includes(normalized)
+    setCancelingId(request.id)
+    setError('')
+
+    try {
+      const response = await fetch('/api/solicitacoes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: request.id,
+          tipoSolicitacao: request.tipoSolicitacao,
+        }),
+      })
+      const payload = await response.json()
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.replace('/login')
+          return
+        }
+
+        throw new Error(payload.error || 'Falha ao cancelar solicitacao')
+      }
+
+      setRequests((current) =>
+        current.map((item) => (item.id === request.id ? { ...item, status: 'cancelado', dataConclusao: new Date().toISOString() } : item)),
+      )
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : 'Falha ao cancelar solicitacao')
+    } finally {
+      setCancelingId('')
+    }
+  }
+
+  const filteredRequests = useMemo(() => {
+    const normalized = normalizeText(search)
+    const matchedRequests = normalized
+      ? requests.filter((request) => {
+          const searchBlob = normalizeText(`${request.titulo} ${request.skuBase} ${request.skuVariacao ?? ''} ${request.detalhe} ${request.id}`)
+          return searchBlob.includes(normalized)
+        })
+      : requests
+
+    if (sortOrder === 'recentes') {
+      return matchedRequests
+    }
+
+    return [...matchedRequests].sort((left, right) => {
+      const compared = compareSkuNaturally(getRequestSkuForSort(left), getRequestSkuForSort(right))
+      return sortOrder === 'sku_asc' ? compared : -compared
     })
-  }, [requests, search])
+  }, [requests, search, sortOrder])
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -119,7 +172,7 @@ export default function HistoricoPage() {
           </Link>
         </div>
 
-        <div className="mt-8 grid gap-4 lg:grid-cols-[2fr_240px_280px]">
+        <div className="mt-8 grid gap-4 lg:grid-cols-[2fr_220px_220px_240px]">
           <SearchBar value={search} onChange={setSearch} placeholder={t('history.searchPlaceholder')} label={t('history.searchLabel')} />
           <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
             {t('history.type')}
@@ -148,6 +201,18 @@ export default function HistoricoPage() {
               <option value="cancelado" className="bg-slate text-ink">{t('history.statusOptions.canceled')}</option>
             </select>
           </label>
+          <label className="flex flex-col gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-steel">
+            {t('history.sort')}
+            <select
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value as HistorySortOrder)}
+              className="brand-chip rounded-2xl px-4 py-3 text-base text-ink outline-none focus:border-amber/40 sm:text-sm"
+            >
+              <option value="recentes" className="bg-slate text-ink">{t('history.sortOptions.recent')}</option>
+              <option value="sku_asc" className="bg-slate text-ink">{t('history.sortOptions.skuAsc')}</option>
+              <option value="sku_desc" className="bg-slate text-ink">{t('history.sortOptions.skuDesc')}</option>
+            </select>
+          </label>
         </div>
       </section>
 
@@ -156,10 +221,10 @@ export default function HistoricoPage() {
         {loading ? (
           <div className="panel rounded-3xl p-6 text-sm text-steel">{t('history.loading')}</div>
         ) : (
-          <HistoryTable requests={filteredRequests} />
+          <HistoryTable requests={filteredRequests} onCancel={handleCancelRequest} cancelingId={cancelingId} />
         )}
       </section>
-      <LoadingOverlay open={loading} label={t('history.loading')} />
+      <LoadingOverlay open={loading || Boolean(cancelingId)} label={cancelingId ? t('history.canceling') : t('history.loading')} />
     </main>
   )
 }
